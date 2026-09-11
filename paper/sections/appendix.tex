@@ -30,6 +30,7 @@
   \texttt{boundary/} & 24/48/72小时及远端残值的完整对照轨迹，位于第二问归档 \\
   \texttt{runs/problem3/} & 第三问一月规则检验、14种策略逐日轨迹、发布计划与调整记录、校验归档 \\
   \texttt{issued\_adjustments.csv} & 第三问每次调整的剩余时段合同、风险带与参考储能轨迹，位于对应归档 \\
+  \texttt{runs/problem4/} & 第四问一月价格检验、8种策略逐日轨迹、价格预测误差与校验归档 \\
   \texttt{AI工具使用详情.pdf} & AI 工具使用过程、人工修改与核验记录 \\
   \bottomrule
 \end{longtable}
@@ -42,7 +43,7 @@
 
 第三问执行流程为：读取附件3并按对齐检验将整点预报锚定到发布后对应起始时段，以发布前刚结束的实测时段作首锚点插值到10分钟；光伏点预报与本地趋势预测等权融合，负荷沿用第二问预测；每日0:00以同一48小时风险规划提交合同，在6:00、12:00、18:00按最新预报、实际SOC与0:00计划重解剩余时段的有偿调整LP，只提交当日剩余时段合同；逐时贪心执行并继承真实SOC；按最后有效合同与0:00计划一次结算。运行\texttt{make solve-q3}重算14种策略与一月检验，运行\texttt{make check-q3}独立核验轨迹、调整记录、因果重建与工作簿。
 
-【待补充：问题四的实际算法流程。】
+第四问执行流程为：读取附件4并沿用日循环起点时标；以已完成日期的价格和本地净负荷预测生成因果日前价格预测（两周同日均值与净负荷回归等权融合），在调整时刻按已观测的当日价格作加性修正；分别以第二问信息集（固定合同）和第三问信息集（三时点有偿调整）回放全年，规划用预测价、账单按交付时段实时价结算；另以附件1固定轮廓、当日价格已知、无日内修正、仅计划为对照。运行\texttt{make solve-q4}重算，运行\texttt{make check-q4}核验结算价格、轨迹、调整记录、价格因果重建与两份工作簿。
 
 图形采用统一语义颜色、子图编号与最终印刷字号，配置见\path{code/config/visual_style.json}，详细约束及设计依据见\path{code/vis/STYLE_GUIDE.md}。图形组织参考Nature科学图形指南与NeurIPS历史格式说明\cite{nature-figure-guide,neurips-figure-style}，论文版式仍以本竞赛规范为准。执行\texttt{make figures}可从已核验归档重绘，不重复求解；流程核对数值文件与工作簿哈希不变，并单独保存视觉版本。矢量图以160 mm全宽插入，区间阶梯保留10分钟分辨率；配对重采样区间与确定性敏感性连线明确区分。
 
@@ -94,6 +95,24 @@
  \label{fig:q3-days}
 \end{figure}
 
+\section{第四问指定日期结果}
+\label{app:q4-dates}
+
+两族主策略在四个指定日期的结果按表1至表3格式给出；全天购电费均为按交付时段实时价结算的实际账单。
+
+\begingroup
+\renewcommand{\arraystretch}{0.9}
+\input{../output/tables/q42_purchase.tex}
+\input{../output/tables/q42_storage.tex}
+\endgroup
+\input{../output/tables/q42_emergency.tex}
+\begingroup
+\renewcommand{\arraystretch}{0.9}
+\input{../output/tables/q43_purchase.tex}
+\input{../output/tables/q43_storage.tex}
+\endgroup
+\input{../output/tables/q43_emergency.tex}
+
 \section{完整源程序}
 
 \lstinputlisting[caption={集中参数配置}]{../code/config/problem.json}
@@ -134,11 +153,18 @@
 \lstinputlisting[language=Python,caption={问题三策略目录、连续回放与版本归档}]{../code/src/cumcm_c/problem3_workflow.py}
 \lstinputlisting[language=Python,caption={问题三官方模板展开、回读校验与论文表格}]{../code/src/cumcm_c/problem3_export.py}
 \lstinputlisting[language=Python,caption={问题三报告生成}]{../code/src/cumcm_c/problem3_reporting.py}
-\lstinputlisting[language=Python,caption={问题三图形}]{../code/vis/problem3.py}
 \lstinputlisting[language=Python,caption={问题三求解入口}]{../code/scripts/solve_problem3.py}
 \lstinputlisting[language=Python,caption={问题三归档独立校验入口}]{../code/scripts/validate_problem3.py}
 \lstinputlisting[language=Python,caption={问题三对齐、分位数带、结算与因果测试}]{../code/tests/test_problem3.py}
 % \lstinputlisting[language=Python,caption={问题四求解程序}]{../code/src/cumcm_c/models/problem4.py}
 % \lstinputlisting[language=Python,caption={独立评估与校验程序}]{../code/src/cumcm_c/models/evaluation.py}
 
-【待补充：问题四源程序；正式支撑材料的完整清单与版本核对。】
+\lstinputlisting[language=Python,caption={问题四因果价格预测与实时价结算模型}]{../code/src/cumcm_c/models/problem4.py}
+\lstinputlisting[language=Python,caption={问题四策略目录、连续回放与版本归档}]{../code/src/cumcm_c/problem4_workflow.py}
+\lstinputlisting[language=Python,caption={问题四官方模板展开、回读校验与论文表格}]{../code/src/cumcm_c/problem4_export.py}
+\lstinputlisting[language=Python,caption={问题四报告生成}]{../code/src/cumcm_c/problem4_reporting.py}
+\lstinputlisting[language=Python,caption={问题四图形}]{../code/vis/problem4.py}
+\lstinputlisting[language=Python,caption={问题四求解入口}]{../code/scripts/solve_problem4.py}
+\lstinputlisting[language=Python,caption={问题四归档独立校验入口}]{../code/scripts/validate_problem4.py}
+\lstinputlisting[language=Python,caption={问题四价格因果性、结算与兼容性测试}]{../code/tests/test_problem4.py}
+\lstinputlisting[language=Python,caption={问题三图形}]{../code/vis/problem3.py}

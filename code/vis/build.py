@@ -23,7 +23,7 @@ def write_json(path,value):path.write_text(json.dumps(value,ensure_ascii=False,i
 
 def build():
     root=PATHS.output_dir
-    names=[name for name in ("problem1","problem2","problem3") if (root/f"runs/{name}/latest.json").exists()]
+    names=[name for name in ("problem1","problem2","problem3","problem4") if (root/f"runs/{name}/latest.json").exists()]
     sources={name:json.loads((root/f"runs/{name}/latest.json").read_text()) for name in names}
     folders={key:PATHS.root/value["path"] for key,value in sources.items()}
     for name,folder in folders.items():
@@ -58,6 +58,13 @@ def build():
             f=folders["problem3"];cfg3=json.loads((f/"config.json").read_text());comparison3=pd.read_csv(f/"comparison.csv")
             trajectories3={name:pd.read_csv(f/f"strategies/{name}.csv") for name in comparison3.strategy}
             q3_figures(trajectories3["adjust_all"],comparison3,trajectories3,pd.read_csv(f/"forecast_diagnostics.csv"),cfg3["report_dates"],out/"figures",Battery(**cfg3["battery"]))
+        if "problem4" in folders:
+            from .problem4 import q4_figures
+            f=folders["problem4"];comparison4=pd.read_csv(f/"comparison.csv")
+            trajectories4={name:pd.read_csv(f/f"strategies/{name}.csv") for name in comparison4.strategy}
+            from cumcm_c.data import problem1_intervals
+            q4_figures(trajectories4,comparison4,pd.read_csv(f/"price_table.csv"),pd.read_csv(f/"price_forecast_errors.csv"),
+                       json.loads((f/"references.json").read_text()),problem1_intervals("start").price_yuan_per_kwh.to_numpy(),out/"figures")
         for path in (PATHS.root/"code/vis").glob("*.py"):shutil.copy2(path,out/"source"/path.name)
         for relative in ("code/scripts/render_publication.py","code/tests/test_visual_style.py"):
             shutil.copy2(PATHS.root/relative,out/"source"/Path(relative).name)
@@ -107,10 +114,13 @@ def gallery(folder,target):
     if (folder/"q3_selected_days.style.json").exists():
         descriptions["q3_selected_days"]="09 / 四个指定日期的计划、最终合同与紧急购电"
         descriptions["q3_information_value"]="10 / 调整时点组合、预报误差与信息价值"
+    if (folder/"q4_prices.style.json").exists():
+        descriptions["q4_prices"]="11 / 实时电价结构与因果价格预测误差"
+        descriptions["q4_costs"]="12 / 实时价结算下第二、三问策略的费用"
     cards=[]
     for name,title in descriptions.items():
         meta=json.loads((folder/f"{name}.style.json").read_text())
         cards.append(f'<section><h2>{title}</h2><p>{html.escape(meta["description"])}</p><a href="figures/{name}.svg"><img src="figures/{name}.svg" alt="{title}"></a><nav>'+" · ".join(f'<a href="figures/{name}.{ext}">{ext.upper()}</a>' for ext in ("pdf","svg","png"))+"</nav></section>")
     target.write_text('''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Scientific Figures / 微网调度</title><style>body{font:15px Arial,'Microsoft YaHei',sans-serif;max-width:1080px;margin:45px auto;padding:0 24px;background:#f6f8fa;color:#202a35}h1{font-size:29px;font-weight:600;letter-spacing:-.6px}header{border-bottom:2px solid #0072b2;padding-bottom:24px}section{margin:28px 0;background:white;border:1px solid #dce2e7;padding:25px}h2{font-size:17px;font-weight:600}p{line-height:1.8;color:#66727e}img{display:block;max-width:100%;max-height:850px;margin:28px auto}a{color:#0072b2;text-decoration:none}nav{border-top:1px solid #dce2e7;padding-top:14px;font-size:13px}</style>
-<header><h1>微网调度 · 科学图形集</h1><p>统一语义配色 / 真实印刷尺寸 / 矢量文字 / 风险透明<br>由已校验的第一至三问结果直接重绘。只更新视觉呈现，不改变数据或策略。</p><nav><a href="../code/vis/STYLE_GUIDE.md">风格规范</a> · <a href="problem1-dashboard.html">第一问交互图</a> · <a href="problem2-dashboard.html">第二问交互图</a> · <a href="paper/main.pdf">论文 PDF</a></nav></header>'''+"\n".join(cards)+"</html>",encoding="utf-8")
+<header><h1>微网调度 · 科学图形集</h1><p>统一语义配色 / 真实印刷尺寸 / 矢量文字 / 风险透明<br>由已校验的第一至四问结果直接重绘。只更新视觉呈现，不改变数据或策略。</p><nav><a href="../code/vis/STYLE_GUIDE.md">风格规范</a> · <a href="problem1-dashboard.html">第一问交互图</a> · <a href="problem2-dashboard.html">第二问交互图</a> · <a href="paper/main.pdf">论文 PDF</a></nav></header>'''+"\n".join(cards)+"</html>",encoding="utf-8")

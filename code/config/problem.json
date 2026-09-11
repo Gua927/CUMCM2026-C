@@ -76,5 +76,21 @@
     "bootstrap_seed": 20260912,
     "bootstrap_block_days": 7,
     "bootstrap_repetitions": 2000
+  },
+  "problem4": {
+    "price_method": "combined",
+    "price_method_basis": "Equal-weight average of (i) the mean of the two most recent same-weekday price profiles and (ii) a per-slot regression of price on net load fitted on the last 56 completed days and applied to the in-house net-load forecast; fixed a priori, January check reported",
+    "weekday_weeks": 2,
+    "regression_window_days": 56,
+    "price_floor_yuan_per_kwh": 0.01,
+    "intraday_correction": "additive",
+    "intraday_basis": "Mean deviation of the observed same-day prices from the day-ahead forecast is added to the remaining slots at each release",
+    "settlement_basis": "Plan, adjustment and emergency bills use the realized attachment 4 price of the delivery slot; the future price is unknown at decision time",
+    "check_start": "2025-01-08",
+    "check_end": "2025-01-31",
+    "evaluation_start": "2025-02-01",
+    "bootstrap_seed": 20260913,
+    "bootstrap_block_days": 7,
+    "bootstrap_repetitions": 2000
   }
 }

@@ -162,3 +162,23 @@ def problem3_forecasts():
     if not np.isfinite(hourly).all() or (hourly < 0).any():
         raise ValueError("Missing or negative PV forecast")
     return dates, tuple(m // 10 for m in issue_minutes), hourly
+
+
+def problem4_prices(convention="daily_cyclic_start"):
+    """Return (dates, prices[day, slot]) in yuan/kWh from attachment 4.
+
+    The columns follow attachment 2 (00:10 ... 00:00+1); the same daily cyclic start
+    convention is applied so that slot k of every array covers [10k, 10k+10) minutes.
+    """
+    frame = load_attachment4()
+    dates = pd.DatetimeIndex(pd.to_datetime(frame.iloc[:, 0]))
+    if not dates.equals(pd.date_range("2025-01-01", "2025-12-31")):
+        raise ValueError("Unexpected price dates")
+    if not np.array_equal([time_minutes(x) for x in frame.columns[1:]], np.arange(10, 1441, 10)):
+        raise ValueError("Unexpected price time labels")
+    values = frame.iloc[:, 1:].to_numpy(float)
+    if not np.isfinite(values).all() or (values <= 0).any():
+        raise ValueError("Prices must be finite and positive")
+    if convention != "daily_cyclic_start":
+        raise ValueError(convention)
+    return dates, np.roll(values, 1, axis=1)

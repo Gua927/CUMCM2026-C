@@ -1,0 +1,49 @@
+\input{../output/tables/q4_numbers.tex}
+
+\subsection{实时电价的结构与因果预测}
+
+附件四给出2025年每日144个时段的实时电价，全部为正，介于$0.008$与$1.794$元/kWh之间。其全年均值与附件一完全相同，平均日内轮廓与附件一的相关系数为$1.0$，即附件一是实时价的平均形态；波动体现在日级水平与日内偏差。二月至十二月的日均价在\QFourPriceDailyMin 与\QFourPriceDailyMax 元/kWh之间，按星期聚类识别出的两个低价星期日均值为\QFourPriceWeekendMean 元/kWh，其余日期为\QFourPriceOtherMean 元/kWh，另有冬高夏低的季节起伏（图~\ref{fig:q4-prices}a、b）。价格与净负荷同向变动：逐时相关系数为\QFourPriceNetCorr，逐时段线性回归的$R^2$为\QFourPriceRSquared；本地净负荷预测误差最大的$20\%$时段，其电价为均值的\QFourDeficitPriceRatio 倍。因此在实时价下，紧急补购倾向发生在价格偏高的时段，同一批购电在实时价结算下也会比按附件一计费更贵。
+
+主模型把未来价格视为未知量：每日$0{:}00$只能使用已完成日期的价格与本地信息。日前预测取两部分的等权平均：其一是最近两个相同星期日的价格轮廓均值，捕捉星期与季节水平；其二是以最近56个已完成日期为样本、逐时段将价格对实际净负荷作线性回归，再代入第二问的本地净负荷预测，捕捉负荷驱动的价格变化。次日辅助段用对应提前期的同样构造。等权先验固定，不按结果调参；一月8日至31日的影子检验（表~\ref{tab:q4-price}）中融合预测的当日MAE为\QFourCheckCombined 元/kWh，低于任一分量与附件一轮廓的\QFourCheckFixed，二月至十二月的排序相同，融合当日MAE为\QFourMAECombined 元/kWh，而把附件一当作价格预测的误差为\QFourMAEFixed。在$6{:}00$、$12{:}00$、$18{:}00$，以当日已观测价格相对预测的平均偏差加性修正剩余时段，当日剩余MAE分别由\QFourStaleSix、\QFourStaleTwelve、\QFourStaleEighteen 降到\QFourRemainingSix、\QFourRemainingTwelve、\QFourRemainingEighteen 元/kWh。
+
+\input{../output/tables/q4_price.tex}
+
+\begin{figure}[htbp]
+ \centering\includegraphics[width=\textwidth]{../output/figures/q4_prices.pdf}
+ \caption{实时电价的结构。a：附件四日均价与主模型日前预测的日均值；b：10分钟区间的平均日内轮廓，低价星期日由数据识别；c：二月至十二月各因果预测方法的当日平均绝对误差，条形从零起。}
+ \label{fig:q4-prices}
+\end{figure}
+
+\subsection{结算口径与策略设置}
+
+按第\ref{sec:q3-settlement}节之前的约定，交易时刻电价解释为交付时段的实时价：计划电量、上调、取消退款与紧急补购均按该时段实现的附件四价格结算，规划则只能用预测价，即式~\eqref{eq:problem42}与式~\eqref{eq:problem43}中的价格期望以因果预测代入。由于同一时段的计划价、上调价与紧急价是同一随机价格的固定倍数，第二、三问导出的分位数$0.8$与调整带$[0.7,0.9]$在价格不确定下保持不变；价格与缺口的正相关会使最优分位数略高（按\QFourDeficitPriceRatio 倍估算约为$0.81$），本文保留原值以便比较。储能物理、预测器、残差库、控制器和结算规则均与前两问一致，唯一改变是规划价格与结算价格。
+
+分别在两种信息集下重算：4-2沿用第二问的固定合同与本地预测，4-3沿用第三问的融合预报与三时点有偿调整。每一族另设三类对照：按附件一固定轮廓规划、忽略价格波动；当日实时价在$0{:}00$完全已知的信息放宽上界；4-3再增加不作日内价格修正与仅$0{:}00$计划两种。所有策略以相同实际轨迹、初态、执行器回放，统一残值系数沿用前两问。
+
+\subsection{固定合同策略在波动电价下的结果（4-2）}
+
+主策略现金费用为\QFourTwoTotalCost 万元，其中计划费\QFourTwoPlanCost 万元、紧急费\QFourTwoEmergencyCost 万元，紧急购电\QFourTwoEmergencyEnergy\ kWh，期末电量\QFourTwoTerminal\ kWh，日紧急费用CVaR95为\QFourTwoCvar 元。与固定电价下的第二问结果（\QFourTwoQTwoReference 元）相比高\QFourTwoVsQTwo 元，即\QFourTwoVsQTwoPercent\%。这一差异主要来自结算而非决策：按附件一轮廓规划的对照与第二问作出完全相同的购电与储能决策，仅因按实时价结算就多付\QFourTwoSettlementEffect 元（\QFourTwoSettlementPercent\%），原因是购电集中在净负荷高、实时价高于平均轮廓的时段。价格预测在此基础上收回\QFourTwoFixedDiff 元（\QFourTwoFixedPercent\%），配对七日块重采样的日均节省区间为$[\QFourCITwoFixedLow,\QFourCITwoFixedHigh]$元；当日价格完全已知的上界为\QFourTwoPerfectCost 元，与主策略相差\QFourTwoPerfectGap 元（\QFourTwoPerfectGapPercent\%）。因此固定合同下价格信息的总价值有限：预测已取得约三分之二，其余需要难以获得的当日价格。
+
+\subsection{有偿调整策略在波动电价下的结果（4-3）}
+
+主策略现金费用为\QFourThreeTotalCost 万元：计划费\QFourThreePlanCost 万元，调整结算\QFourThreeAdjustCost 万元，紧急费\QFourThreeEmergencyCost 万元；全年上调\QFourThreeUpEnergy\ kWh、取消\QFourThreeDownEnergy\ kWh，紧急购电\QFourThreeEmergencyEnergy\ kWh，日紧急费用CVaR95为\QFourThreeCvar 元。相对同族仅$0{:}00$计划的策略节省\QFourThreeSavingPlanOnly 元（\QFourThreeSavingPlanOnlyPercent\%），紧急购电由\QFourThreePlanOnlyEmergency\ kWh降至\QFourThreeEmergencyEnergy\ kWh；相对4-2主策略节省\QFourThreeVsTwo 元（\QFourThreeVsTwoPercent\%），日均节省区间$[\QFourCIThreeVsTwoLow,\QFourCIThreeVsTwoHigh]$元。这两个幅度与固定电价下第三问相对第二问的节省几乎相同，说明合同调整机制的价值不依赖价格是否波动。
+
+价格信息的作用与4-2类似。按附件一轮廓规划并调整的对照多付\QFourThreeFixedDiff 元（\QFourThreeFixedPercent\%），其与第三问固定电价结果之差\QFourThreeSettlementEffect 元（\QFourThreeSettlementPercent\%）同样是纯结算效应；当日价格已知的上界为\QFourThreePerfectCost 元，差距\QFourThreePerfectGap 元（\QFourThreePerfectGapPercent\%）。日内价格修正虽然降低了剩余时段的预测误差，但费用只变化\QFourThreeNoIntradayDiff 元，区间$[\QFourCIThreeNoIntradayLow,\QFourCIThreeNoIntradayHigh]$元含零：调整时刻的合同决策由供需缺口与储能状态主导，价格水平的小幅修正不足以改变最优的上调或取消。
+
+\input{../output/tables/q4_comparison.tex}
+
+\begin{figure}[htbp]
+ \centering\includegraphics[width=\textwidth]{../output/figures/q4_costs.pdf}
+ \caption{实时价结算下的费用。a：各策略334天的合同费（含调整结算）与紧急费堆叠，横轴从零起，竖虚线为固定电价下第二、三问主策略的费用；b：4-2主策略、4-3主策略与4-3价格已知上界的逐月现金费用。}
+ \label{fig:q4-costs}
+\end{figure}
+
+\subsection{电价波动的影响}
+
+综合两族结果，电价波动对费用的影响可以分解为三部分。第一，结算效应：价格与净负荷同向波动，使相同购电决策在实时价下多付约$5.4\%$，这是价格信息无法消除的市场条件。第二，预测效应：因果价格预测把购电与储能充放电向预测低价时段迁移，收回其中\QFourTwoFixedDiff 元（4-2）或\QFourThreeFixedDiff 元（4-3），完全信息上界再多\QFourTwoPerfectGap 或\QFourThreePerfectGap 元。第三，机制效应：合同调整权限在波动电价下仍节省约$4\%$，与固定电价下一致，紧急购电量下降三分之二以上。图~\ref{fig:q4-costs}b显示，4-3主策略与其价格已知上界的月费用几乎重合，而与4-2的差距在夏季高价月份最大，与紧急补购集中出现的月份一致。
+
+上述结论限于附件四所代表的价格过程：其均值与附件一相同、日内形态稳定、日级水平由星期与负荷主导，且不含负价与极端尖峰。若价格出现负值或与负荷脱钩的剧烈尖峰，正电价下的可弃电假设与分位数导出均需重新检验。价格预测的残差未进入风险情景，预测误差对费用的影响只以对照策略的形式给出，不是完整的价格--供需联合随机优化。
+
+\subsection{指定日期结果与独立核验}
+
+两族主策略在四个指定日期的计划购电、最终合同、充放电与紧急购电按表1至表3格式列于附录表~\ref{tab:q42-purchase}至表~\ref{tab:q43-emergency}，完整策略分别保存于\texttt{result4-2.xlsx}与\texttt{result4-3.xlsx}；前者沿用result2的口径，后者沿用result3的口径，全天购电费均为按实时价结算的实际账单。独立程序对8条全年轨迹重算物理、合同、调整与费用恒等式，并逐时核对结算价格等于附件四的交付时段价格；保存的规划价格由附件四历史与本地净负荷预测因果重建，改写当日及以后的价格不改变任何一天的规划价格；附件一固定轮廓且无日内修正的价格模型逐时复现第三问的合同与执行，两份工作簿回读与轨迹一致。

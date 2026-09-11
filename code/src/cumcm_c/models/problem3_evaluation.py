@@ -24,6 +24,8 @@ def trajectory(date, actual, result, prices, pricing, policy, metadata):
     frame["adjust_up_kwh"] = np.maximum(contract-plan, 0); frame["adjust_down_kwh"] = np.maximum(plan-contract, 0)
     frame["contract_version"] = result["version"]
     frame["price_yuan_per_kwh"] = prices
+    if "plan_prices" in result:
+        frame["forecast_price_yuan_per_kwh"] = result["plan_prices"]
     sign = settlement_sign(policy.settlement)
     frame["planned_cost_yuan"] = prices*plan
     frame["adjustment_cost_yuan"] = prices*(pricing["upward_adjustment_multiplier"]*frame.adjust_up_kwh

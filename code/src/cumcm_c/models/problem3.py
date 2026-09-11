@@ -164,20 +164,26 @@ def settlement_sign(settlement):
 
 
 def run_day(day, actual, prices, own, external, release_slots, battery, dt, settings, pricing,
-            policy, energy, plans=None, adjustments=None):
+            policy, energy, plans=None, adjustments=None, price_model=None):
     """Causal replay of one day: 0:00 plan, paid adjustments at releases, greedy storage.
 
     Only rows of `actual` before the current slot enter any decision; the current
     slot's supply and demand are treated as measurable during the slot (Q2 convention).
+    With `price_model` (Q4), planning uses its causal forecasts and every bill is
+    settled at its realized prices; otherwise `prices` serve both purposes.
     """
     n = 144; window = settings["residual_window_days"]
+    plan_prices = np.tile(prices, 2) if price_model is None else np.asarray(price_model.plan(day), float)
+    settle = prices if price_model is None else np.asarray(price_model.settle(day), float)
+    if len(plan_prices) != 2*n or len(settle) != n or np.min(plan_prices) <= 0:
+        raise ValueError("Planning prices must cover 288 positive slots and settlement 144 slots")
     sign = settlement_sign(policy.settlement); up_mult = pricing["upward_adjustment_multiplier"]
     down_mult = pricing["downward_adjustment_penalty_multiplier"]; multiplier = pricing["emergency_multiplier"]
     load_point0 = own[day, 0, :, 0]
     today, point0 = sameday_scenarios(actual, own, external, day, 0, 0, 0, policy.weight, window, load_point0)
     tomorrow = horizon_distributions(actual[:day], own[:day], own[day, :2], window)[1]
     risk_today = risk_profile(today, policy.plan_quantile); risk_tomorrow = risk_profile(tomorrow, policy.plan_quantile)
-    plan = plan_day(np.r_[risk_today, risk_tomorrow], np.tile(prices, 2), energy, battery, dt, 0.0)
+    plan = plan_day(np.r_[risk_today, risk_tomorrow], plan_prices, energy, battery, dt, 0.0)
     q0, reference = commit_first_day(plan, n)
     contract = q0.copy(); version = np.zeros(n, int); latest_pv = point0[:, 1].copy()
     if plans is not None:
@@ -194,7 +200,9 @@ def run_day(day, actual, prices, own, external, release_slots, battery, dt, sett
                                                  window, load_point0[t:]+bias)
             low = risk_profile(remaining, policy.low_quantile); high = risk_profile(remaining, policy.high_quantile)
             committed = np.r_[np.ones(n-t, bool), np.zeros(n, bool)]
-            horizon_prices = np.r_[prices[t:], prices]
+            horizon_prices = np.r_[prices[t:], prices] if price_model is None else np.asarray(price_model.horizon(day, t), float)
+            if len(horizon_prices) != 2*n-t or np.min(horizon_prices) <= 0:
+                raise ValueError("Horizon prices must cover the remaining and advisory slots")
             result = adjust_contract(np.r_[q0[t:], np.zeros(n)], np.r_[low, risk_tomorrow], np.r_[high, risk_tomorrow],
                                      horizon_prices, energy, battery, dt, committed,
                                      up_mult*horizon_prices, sign*down_mult*horizon_prices, horizon_prices, 0.0)
@@ -212,8 +220,9 @@ def run_day(day, actual, prices, own, external, release_slots, battery, dt, sett
         rows.append((energy, *row)); energy = row[-1]
     executed = np.asarray(rows)
     up = np.maximum(contract-q0, 0); down = np.maximum(q0-contract, 0)
-    cash = float(prices@(q0+up_mult*up+sign*down_mult*down+multiplier*executed[:, 2]))
+    cash = float(settle@(q0+up_mult*up+sign*down_mult*down+multiplier*executed[:, 2]))
     return {"executed": executed, "plan": q0, "contract": contract, "version": version, "point": point0,
             "risk": risk_today, "latest_pv": latest_pv, "cash": cash, "energy": energy,
+            "plan_prices": plan_prices[:n], "settle_prices": settle,
             "max_residual": max_residual, "adjusted": adjusted, "scenario_count": int(len(today)),
             "plan_objective": plan.objective, "planned_day_end_kwh": float(reference[-1])}
