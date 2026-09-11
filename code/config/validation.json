@@ -1,0 +1,12 @@
+{
+  "max_paper_mb": 20,
+  "max_support_mb": 20,
+  "forbidden_terms": [],
+  "placeholder_terms": [
+    "TODO",
+    "待填写",
+    "请填写",
+    "待补充",
+    "示例标题"
+  ]
+}

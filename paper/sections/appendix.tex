@@ -1,0 +1,80 @@
+\appendix
+
+\section{支撑材料结构}
+
+支撑材料应与论文中的文件名和引用完全一致，建议按下列结构整理；成稿时删除尚不存在的条目并补齐实际文件。
+
+\begin{longtable}{p{0.38\textwidth}p{0.52\textwidth}}
+  \toprule
+  文件路径 & 内容与用途 \\
+  \midrule
+  \endfirsthead
+  \toprule
+  文件路径 & 内容与用途 \\
+  \midrule
+  \endhead
+  \texttt{result1.xlsx} & 问题一完整购电与充放电策略 \\
+  \texttt{result2.xlsx} & 问题二全年计划及紧急购电结果 \\
+  \texttt{result3.xlsx} & 问题三全年计划、调整及紧急购电结果 \\
+  \texttt{result4-2.xlsx} & 波动电价下问题二的完整结果 \\
+  \texttt{result4-3.xlsx} & 波动电价下问题三的完整结果 \\
+  \texttt{code/} & 数据处理、模型求解、结果导出与独立校验程序 \\
+  \texttt{figures/} & 正文图形及其可复现数据 \\
+  \texttt{runs/problem1/} & 第一问各次运行配置、完整策略、敏感性及校验归档 \\
+  \texttt{problem1-dashboard.html} & 第一问可离线查看的交互调度图 \\
+  \texttt{runs/problem2/} & 第二问一月校准、逐日策略、对照、敏感性与校验归档 \\
+  \texttt{problem2-dashboard.html} & 第二问日期选择与逐时离线交互图 \\
+  \texttt{visualization-gallery.html} & 全文科学图形索引及PDF、SVG、PNG下载 \\
+  \texttt{runs/visuals/} & 独立视觉版本、样式规范、源码及数值保护哈希 \\
+  \texttt{AI工具使用详情.pdf} & AI 工具使用过程、人工修改与核验记录 \\
+  \bottomrule
+\end{longtable}
+
+\section{关键算法流程}
+
+第一问执行流程为：校核附件与时间映射，构建并分层求解整数模型，计算线性松弛与对偶校验，独立审计运行轨迹，计算对照与敏感性，回读校验工作簿，最后将成功结果发布到固定入口并保留版本归档。运行失败时保存诊断，不发布为有效结果。可在项目根目录执行 \texttt{make solve-q1} 重算，执行 \texttt{make check-q1} 对最近归档作独立检查。
+
+第二问执行流程为：仅以一月历史滚动预测并选择风险参数和控制器，冻结数值参数；随后按日期生成预测与历史残差分布，以实际日初SOC求解固定合同，逐时因果执行并继承日末SOC；分别核算合同和紧急购电，完成基线、扰动与工作簿回读。运行 \texttt{make solve-q2} 重算，运行 \texttt{make check-q2} 独立验证最近归档。
+
+【待补充：问题三、四的实际算法流程。】
+
+图形采用统一语义颜色、子图编号与最终印刷字号，配置见\texttt{code/config/visual\_style.json}，详细约束及设计依据见\texttt{code/vis/STYLE\_GUIDE.md}。图形组织参考Nature科学图形指南与NeurIPS历史格式说明\cite{nature-figure-guide,neurips-figure-style}，论文版式仍以本竞赛规范为准。执行\texttt{make figures}可从已核验归档重绘，不重复求解；流程核对数值文件与工作簿哈希不变，并单独保存视觉版本。矢量图以160 mm全宽插入，区间阶梯保留10分钟分辨率；配对重采样区间与确定性敏感性连线明确区分。
+
+\section{完整源程序}
+
+\lstinputlisting[caption={集中参数配置}]{../code/config/problem.json}
+\lstinputlisting[caption={全文科学图形风格配置}]{../code/config/visual_style.json}
+\lstinputlisting[caption={Python运行依赖}]{../code/requirements.txt}
+
+% 2026 规则要求论文附录包含全部完整、可运行的源程序。
+% 模型实现完成后，按实际文件逐项取消注释；路径以 paper/ 为当前目录。
+\lstinputlisting[language=Python,caption={路径与数据文件定位程序}]{../code/src/cumcm_c/paths.py}
+\lstinputlisting[language=Python,caption={数据读取与结构检查程序}]{../code/src/cumcm_c/data.py}
+\lstinputlisting[language=Python,caption={结果工作簿导出程序}]{../code/src/cumcm_c/export.py}
+\lstinputlisting[language=Python,caption={共享电池参数、单位与轨迹接口}]{../code/src/cumcm_c/models/common.py}
+\lstinputlisting[language=Python,caption={问题一分层优化与对偶校验}]{../code/src/cumcm_c/models/problem1.py}
+\lstinputlisting[language=Python,caption={独立物理校验、基线与结果聚合}]{../code/src/cumcm_c/models/evaluation.py}
+\lstinputlisting[language=Python,caption={第一问版本归档与输出流程}]{../code/src/cumcm_c/problem1_workflow.py}
+\lstinputlisting[language=Python,caption={统一绘图样式}]{../code/vis/style.py}
+\lstinputlisting[language=Python,caption={论文科学图形与风险比较图}]{../code/vis/publication.py}
+\lstinputlisting[language=Python,caption={独立视觉归档与图形索引}]{../code/vis/build.py}
+\lstinputlisting[language=Python,caption={只重绘不求解的入口}]{../code/scripts/render_publication.py}
+\lstinputlisting[language=Python,caption={视觉规范及导出前检查测试}]{../code/tests/test_visual_style.py}
+\lstinputlisting[language=Python,caption={第一问图形与离线交互图生成}]{../code/vis/problem1.py}
+\lstinputlisting[language=Python,caption={第一问求解入口}]{../code/scripts/solve_problem1.py}
+\lstinputlisting[language=Python,caption={第一问归档独立校验入口}]{../code/scripts/validate_problem1.py}
+\lstinputlisting[language=Python,caption={第一问可手算案例与导出测试}]{../code/tests/test_problem1.py}
+\lstinputlisting[language=Python,caption={因果预测与历史误差情景}]{../code/src/cumcm_c/models/forecasting.py}
+\lstinputlisting[language=Python,caption={问题二固定合同与因果储能控制}]{../code/src/cumcm_c/models/problem2.py}
+\lstinputlisting[language=Python,caption={问题二独立物理费用校验与聚合}]{../code/src/cumcm_c/models/problem2_evaluation.py}
+\lstinputlisting[language=Python,caption={问题二参数校准、连续回放与版本归档}]{../code/src/cumcm_c/problem2_workflow.py}
+\lstinputlisting[language=Python,caption={问题二官方模板展开与回读校验}]{../code/src/cumcm_c/problem2_export.py}
+\lstinputlisting[language=Python,caption={问题二图形及离线交互图}]{../code/vis/problem2.py}
+\lstinputlisting[language=Python,caption={问题二求解入口}]{../code/scripts/solve_problem2.py}
+\lstinputlisting[language=Python,caption={问题二归档独立校验入口}]{../code/scripts/validate_problem2.py}
+\lstinputlisting[language=Python,caption={问题二手算案例和因果性测试}]{../code/tests/test_problem2.py}
+% \lstinputlisting[language=Python,caption={问题三求解程序}]{../code/src/cumcm_c/models/problem3.py}
+% \lstinputlisting[language=Python,caption={问题四求解程序}]{../code/src/cumcm_c/models/problem4.py}
+% \lstinputlisting[language=Python,caption={独立评估与校验程序}]{../code/src/cumcm_c/models/evaluation.py}
+
+【待补充：问题三、四源程序；正式支撑材料的完整清单与版本核对。】

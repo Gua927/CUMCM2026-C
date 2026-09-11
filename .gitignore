@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Private team identity configuration
+code/config/team_private.json
+
+# LaTeX build products
+output/.build/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# Generated modeling and submission artifacts
+output/**
+!output/
+!output/README.md
+!output/**/
+!output/**/.gitkeep
+
+# Office temporary lock files
+~$*.xlsx
+~$*.docx
+
+# Temporary render/check files
+tmp/
+
+# OS/editor
+.DS_Store
+Thumbs.db

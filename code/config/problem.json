@@ -1,0 +1,51 @@
+{
+  "time_step_minutes": 10,
+  "battery": {
+    "capacity_kwh": 12000,
+    "soc_min_kwh": 1200,
+    "soc_max_kwh": 10800,
+    "initial_soc_kwh": 6000,
+    "max_charge_power_kw": 5000,
+    "max_discharge_power_kw": 5000,
+    "charge_efficiency": 0.9,
+    "discharge_efficiency": 0.9
+  },
+  "pricing": {
+    "emergency_multiplier": 5.0,
+    "downward_adjustment_penalty_multiplier": 0.5,
+    "upward_adjustment_multiplier": 1.5
+  },
+  "forecast_issue_hours": [0, 6, 12, 18],
+  "report_dates": ["2025-03-20", "2025-06-21", "2025-09-23", "2025-12-21"],
+  "problem2": {
+    "time_convention": "daily_cyclic_start",
+    "evaluation_start": "2025-02-01",
+    "calibration_start": "2025-01-15",
+    "calibration_end": "2025-01-31",
+    "forecast_window_days": 28,
+    "residual_window_days": 56,
+    "quantile_candidates": [0.5, 0.65, 0.8, 0.9],
+    "terminal_value_factors": [0.8, 1.0, 1.2],
+    "controller_candidates": ["greedy", "reference", "mpc"],
+    "controller_update_slots": 6,
+    "online_bias_window_slots": 6,
+    "online_bias_decay_slots": 12,
+    "audit_absolute_tolerance": 0.00002,
+    "bootstrap_seed": 20260911,
+    "bootstrap_block_days": 7,
+    "bootstrap_repetitions": 2000
+  },
+  "problem1": {
+    "time_convention": "start",
+    "time_convention_basis": "User confirmed official-template start labels with daily cyclic midnight mapping on 2026-09-11",
+    "time_limit_seconds": 120,
+    "cost_tie_tolerance_yuan": 1e-7,
+    "throughput_tie_tolerance_kwh": 1e-6,
+    "audit_absolute_tolerance": 2e-5,
+    "rule_price_quantiles": [0.25, 0.75],
+    "capacity_sensitivity_kwh": [6000, 9000, 12000, 15000, 18000],
+    "power_sensitivity_kw": [2500, 3750, 5000, 6250, 7500],
+    "efficiency_sensitivity": [0.85, 0.9, 0.9486832980505138, 0.95, 1.0],
+    "pv_scale_sensitivity": [0.8, 1.0, 1.2]
+  }
+}

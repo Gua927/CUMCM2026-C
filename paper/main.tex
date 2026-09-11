@@ -1,0 +1,38 @@
+% CUMCM 2026 电子版论文入口。
+% withoutpreface：不生成承诺书和编号专用页；bwprint：适合黑白打印。
+\documentclass[withoutpreface,bwprint]{cumcmthesis}
+\usepackage{cumcm2026}
+
+% 电子版不得出现作者、学校、赛区、学号等身份信息。
+\title{考虑预测风险与计划调整成本的微网储能调度模型}
+
+% 上游类写作“关键字”，按 2026 官方规范覆盖为“关键词”。
+\makeatletter
+\renewcommand*{\mcm@cap@keywordsname}{关键词}
+\makeatother
+
+\graphicspath{{assets/}{../output/figures/}}
+
+% 本项目已经使用 AI 协助整理资料和代码，因此默认必须声明使用 AI。
+% 仅在确认竞赛全过程完全未使用任何 AI 工具时改为 \AIUsedfalse。
+\newif\ifAIUsed
+\AIUsedtrue
+\newcommand{\AIUsageSummary}{资料整理、建模讨论、代码辅助与论文初稿撰写}
+
+\begin{document}
+
+% withoutpreface 模式下，摘要页即电子版第一页，页码从 1 开始。
+\maketitle
+\input{sections/abstract}
+
+% 不生成目录；正文原则上不超过 30 页。
+\input{sections/body}
+
+% 2026 规定：AI 工具使用声明必须置于参考文献之前。
+\input{sections/ai_statement}
+\input{sections/references}
+
+% 附录需列支撑材料，并包含完整、可运行的源程序。
+\input{sections/appendix}
+
+\end{document}

@@ -1,0 +1,322 @@
+\section{统一调度模型}
+
+\subsection{时间离散与能量守恒}
+
+将原始负荷功率与光伏功率转换为时段电量，定义
+\begin{equation}
+  \ell_t=P_t^{\rm load}\Delta t,\qquad
+  v_t=P_t^{\rm pv}\Delta t,\qquad n_t=\ell_t-v_t.
+  \label{eq:net-load}
+\end{equation}
+其中，$n_t>0$ 表示不考虑储能时存在供能缺口，$n_t<0$ 表示光伏存在富余。保留负荷与光伏两个分量，是为了在净负荷调度之外单独核算光伏弃电及消纳情况。
+
+计划购电量是付费承诺，不一定等于实际取电量。设 $h_t$ 为有效计划 $q_t$ 中的实际取用量，$w_t$ 为未利用量，则
+\begin{equation}
+  0\le h_t\le q_t,\qquad w_t=q_t-h_t,\qquad
+  0\le z_t\le v_t,\qquad e_t\ge0.
+  \label{eq:energy-bounds}
+\end{equation}
+在明确剩余电量处置后，每一时段的能量平衡写为
+\begin{equation}
+  h_t+e_t+v_t+d_t=\ell_t+c_t+z_t.
+  \label{eq:energy-balance}
+\end{equation}
+式~\eqref{eq:energy-balance} 同时保证负荷得到满足，并区分光伏弃电与计划未利用量。紧急购电既进入供能端，也计入费用，不能仅作为允许负荷缺失的惩罚项。
+
+\subsection{储能动态与设备边界}
+
+充电量 $c_t$ 经过充电损耗后进入电池，输出 $d_t$ 则需要消耗更多内部电量，故
+\begin{equation}
+  E_{t+1}=E_t+\eta_cc_t-\frac{d_t}{\eta_d}.
+  \label{eq:soc-transition}
+\end{equation}
+题面给出的 $12000\ \mathrm{kWh}$ 是额定容量，实际允许储电量的范围为
+\begin{equation}
+  E^{\min}=1200\le E_t\le10800=E^{\max},
+  \qquad t=0,\ldots,T.
+  \label{eq:soc-bounds}
+\end{equation}
+因而可调节电量区间的宽度为 $9600\ \mathrm{kWh}$。最大充、放电功率均为 $5000\ \mathrm{kW}$，对应时段电量上限
+\begin{equation}
+  \bar c=\bar d=5000\Delta t=\frac{2500}{3}\ \mathrm{kWh}.
+  \label{eq:power-limit}
+\end{equation}
+引入充电状态变量 $u_t\in\{0,1\}$，将互斥约束表示为
+\begin{equation}
+  0\le c_t\le\bar c u_t,\qquad
+  0\le d_t\le\bar d(1-u_t).
+  \label{eq:exclusive}
+\end{equation}
+
+为落实紧急购电只补足当前负荷的约定，在问题二至四的运行模型中进一步要求
+\begin{equation}
+  e_tc_t=e_tz_t=0,\qquad
+  e_t=\bigl[\ell_t+c_t+z_t-v_t-d_t-q_t\bigr]^+,
+  \label{eq:emergency-operation}
+\end{equation}
+其中 $[x]^+=\max(x,0)$。前式禁止紧急购电与充电或弃光同时发生，后式限定补购量恰为普通计划不足以覆盖的剩余缺口；运行时应优先取消无供能支持的充电。该约定可通过分段线性和模式变量表示，也可在因果执行器中落实。下文将式~\eqref{eq:energy-bounds}--\eqref{eq:emergency-operation} 对应的运行可行域记为 $\mathcal F$。
+
+累计能量平衡与状态转移可得
+\begin{equation}
+\begin{aligned}
+  \sum_{t=0}^{T-1}(h_t+e_t)
+  ={}&\sum_{t=0}^{T-1}(\ell_t-v_t+z_t)+(E_T-E_0)\\
+     &+\sum_{t=0}^{T-1}\left[(1-\eta_c)c_t+
+       \left(\frac{1}{\eta_d}-1\right)d_t\right].
+\end{aligned}
+\label{eq:aggregate-balance}
+\end{equation}
+该式表明，总实际购电量除受净负荷影响，还与弃光、储能损耗和期末电量有关。只有在无损耗、无弃光且期末电量固定的特殊情况下，总购电量才完全由总净负荷决定。
+
+\subsection{信息约束与状态描述}
+
+设 $\mathcal I_t$ 为某一动作发生时已获得的信息，包括已到达的历史观测、已发布预报、可见价格、实际储能电量及有效合同。调度动作 $a_t$ 必须满足
+\begin{equation}
+  a_t=\pi_t(\mathcal I_t).
+  \label{eq:causality}
+\end{equation}
+日前与日内规划只使用规划时刻以前已获得的数据；时段内本地响应可利用当时已测得的供需。式~\eqref{eq:causality} 不允许将尚未发生的实测值作为输入，也不允许用日末真实 SOC 反推日初决策。
+
+对于情景表示，若两条情景 $s,s'$ 在当前动作前具有相同可观测历史，则要求
+\begin{equation}
+  a_{t,s}=a_{t,s'}.
+  \label{eq:nonanticipativity}
+\end{equation}
+因此，日前合同在所有情景中共享，运行决策只能在信息分化之后有所不同。若为每个情景预先指定一条利用完整未来的充放电路径，则放宽了信息约束，其费用不能直接代表可执行策略的实际费用。
+
+模型的物理状态为 $E_t$，合同状态为日前基准及尚未交付部分的有效计划。未来条件分布仍可能依赖历史信息，因此不将当前负荷、光伏与价格的几个数值直接视为充分状态。
+
+\subsection{跨日衔接与终端资源价值}
+
+连续运行时，初始条件及日间衔接为
+\begin{equation}
+  E_{\text{2025年1月1日},0}=6000,\qquad
+  E_{j+1,0}=E_{j,T}.
+  \label{eq:day-continuity}
+\end{equation}
+问题一另有 $E_T=E_0$ 的硬约束。问题二至四若仅优化到日末且不赋予剩余电量价值，可能产生窗口末端过度放电的行为。为反映后续运行需要，在目标中加入终端成本 $\Phi(E_H)$，其中 $H$ 为优化窗口末端。一种简化表达为
+\begin{equation}
+  \Phi(E_H)=-\nu_HE_H,\qquad \nu_H\ge0,
+  \label{eq:terminal-value}
+\end{equation}
+其中 $\nu_H$ 为每单位电池内部电量的后续价值，单位为元/kWh，需由此前可用数据校准。负号表示保留资源带来收益；该项不属于当期实际购电费。
+
+\subsection{统一目标函数}
+
+设 $\Pi(\mathcal I_t)$ 为满足当前信息限制及合同权限的策略集合，$K_\tau$ 为时段 $\tau$ 的普通合同及调整总费用，则期望费用模型统一表示为
+\begin{equation}
+  \min_{\pi\in\Pi(\mathcal I_t)}
+  \mathbb E\left[
+    \sum_{\tau=t}^{H-1}(K_\tau+5p_\tau e_\tau)
+    +\Phi(E_H)\,\middle|\,\mathcal I_t
+  \right],
+  \label{eq:unified-objective}
+\end{equation}
+并满足运行可行域及相应初始条件。问题一不设置紧急购电，且以硬性期末条件替代终端价值；其余各问通过信息集、合同权限和 $K_\tau$ 的变化实现扩展。
+
+为刻画极端补购风险，记日紧急购电费为 $\mathcal L$。可在目标中加入风险项 $\lambda\operatorname{CVaR}_\alpha(\mathcal L)$，其定义为
+\begin{equation}
+  \operatorname{CVaR}_\alpha(\mathcal L)
+  =\min_{\zeta}\left\{\zeta+
+  \frac{1}{1-\alpha}\mathbb E[(\mathcal L-\zeta)^+]\right\},
+  \quad 0<\alpha<1.
+  \label{eq:cvar}
+\end{equation}
+该项刻画高损失尾部，$\lambda$ 表示额外风险偏好。$5$ 倍紧急购电价格已经反映不足的经济代价，故期望费用模型本身即可作为主模型，CVaR 为可选扩展。实际费用、终端价值与风险项应分别报告，不能将优化目标值整体当作购电现金支出。
+
+\section{问题一：确定性日前购电模型}
+
+\subsection{数据校核与时间映射}
+
+附件一包含 $144$ 条有效记录，负荷与光伏功率均非负，电价范围为 $0.3713$--$1.3952$ 元/kWh。其时间列从 $0{:}10$ 至次日 $0{:}00$，而结果模板从 $0{:}10$--$0{:}20$ 至次日 $0{:}00$--$0{:}10$ 排列。本文按模板将附件时间解释为时段起点，利用日循环条件将末行次日 $0{:}00$ 映射到当日首时段，形成完整的 $0{:}00$--$24{:}00$ 序列。
+
+输出工作簿保留原始区间标签和单元格格式，其最后一行对应下一周期重复的首时段。指定时段表及储能汇总均按实际日内区间计算，并保存原始数据行、规范时段与模板行之间的一一映射。另将附件时间作为时段终点重新求解，用于检查时间解释对结果的影响。
+
+\subsection{模型建立}
+
+将附件一的光伏预测作为给定的确定性光伏输入。令 $\mathcal T=\{0,\ldots,T-1\}$，以普通购电、充放电及储能状态等为决策变量，建立
+\begin{equation}
+\begin{aligned}
+  \min\quad & C_1=\sum_{t\in\mathcal T}p_tq_t,\\
+  \text{s.t.}\quad
+  &\text{式~\eqref{eq:energy-bounds}--\eqref{eq:exclusive}},\\
+  &e_t=0,\quad q_t=q_t^0,\qquad t\in\mathcal T,\\
+  &E_0=E_T=6000.
+\end{aligned}
+\label{eq:problem1}
+\end{equation}
+这里沿用附录初始储电量作为单日计算起点。由于光伏出力按预测值输入，式~\eqref{eq:problem1} 保证的是给定预测轨迹下的可行性，实际光伏偏离预测后的运行问题由后续模型处理。
+
+\subsection{模型结构与经济解释}
+
+除充放电状态变量外，式~\eqref{eq:problem1} 的目标及约束均为线性，因此可采用混合整数线性规划求解。将 $u_t$ 放松至 $[0,1]$ 可以得到目标下界；只有松弛解满足充放电互斥，或能够证明存在同费用的互斥解时，才可直接使用其调度结果。
+
+低价时购入并储存 $1\ \mathrm{kWh}$ 电量，经充放电后可向负荷提供 $\eta_c\eta_d\ \mathrm{kWh}$。忽略其他约束，以避免未来购电衡量收益，则获得严格正套利收益要求
+\begin{equation}
+  p_{\rm high}\eta_c\eta_d>p_{\rm low}.
+  \label{eq:arbitrage}
+\end{equation}
+容量和功率约束存在时，该条件不能独立决定充放电：当前占用容量可能排挤未来更便宜的电能，当前放电也会减少高价时段的可用储量。因此，优化结果需要结合整个日内轨迹解释。
+
+\input{sections/problem1_results}
+
+\section{问题二：不确定条件下的日前计划}
+
+\subsection{信息集与净负荷不确定性}
+
+问题二在每日 $0{:}00$ 决定整天的 $\boldsymbol q^0$，随后普通合同保持不变。以 $\mathcal I_{j,0}$ 表示第 $j$ 日日前信息集，未来负荷与光伏由条件分布
+\begin{equation}
+  \mathbb P(\boldsymbol\ell_j,\boldsymbol v_j\mid\mathcal I_{j,0})
+  \label{eq:load-pv-distribution}
+\end{equation}
+描述。采用情景近似时，每条情景应是一段联合日轨迹，而非彼此独立抽取的 $144$ 个单点误差。负荷与光伏可以分别预测，但其成对误差及跨时段关联需要在净负荷情景中保留。
+
+题目提供全年数据，而官方模板的结果区间为 $2025$ 年 $2$ 月 $1$ 日至 $12$ 月 $31$ 日。因此，一月可用于初始训练和运行预热，之后按时间顺序扩展历史窗口。预热期同样遵循信息约束，不能使用一月末才获得的信息安排一月初运行。训练样本的真实标签、误差校准和标准化参数均须在对应决策前可得。
+
+\subsection{非对称费用与分位数决策}
+
+先考虑无储能的单时段情形。设需求 $D\ge0$ 为随机变量，普通电价 $p>0$，计划购电 $q$ 全额付费，未用电量无残值，缺口按 $5p$ 购买。其期望费用为
+\begin{equation}
+  C(q)=pq+5p\mathbb E[(D-q)^+].
+  \label{eq:single-period-cost}
+\end{equation}
+当需求分布连续、最优解处于内部时，对 $q$ 求导得
+\begin{equation}
+  C'(q)=p-5p\Pr(D>q)=0
+  \quad\Longrightarrow\quad F_D(q^*)=0.8.
+  \label{eq:quantile}
+\end{equation}
+该推导说明，最小费用决策一般不以需求均值为目标，而倾向于较高分位数。存在储能后，时段间可转移的电量改变了缺口的边际代价，因而不能逐时套用 $80\%$ 分位数并据此声称得到全天最优解。
+
+\subsection{固定合同下的策略优化}
+
+设 $\pi^{\rm op}$ 表示合同给定后的因果运行策略，优化问题为
+\begin{equation}
+\begin{aligned}
+  \min_{\boldsymbol q^0,\pi^{\rm op}}\quad
+  &\sum_{t\in\mathcal T}p_tq_t^0+
+  \mathbb E\left[
+    \sum_{t\in\mathcal T}5p_te_t+\Phi(E_T)
+    \,\middle|\,\mathcal I_{j,0}\right],\\
+  \text{s.t.}\quad
+  &q_t=q_t^0,\qquad t\in\mathcal T,\\
+  &\mathcal F,\quad\text{信息约束~\eqref{eq:causality}及跨日条件~\eqref{eq:day-continuity}}.
+\end{aligned}
+\label{eq:problem2}
+\end{equation}
+第一项对未利用的计划电量同样收费；第二项反映运行中真正发生的补购。储能动作依赖当前电量和已获得信息，但不能更改固定普通合同。
+
+若采用 $S$ 条情景及概率 $\omega_s$，期望项可近似为
+\begin{equation}
+  \sum_{s=1}^{S}\omega_s
+  \left[\sum_{t\in\mathcal T}5p_te_{t,s}+\Phi(E_{T,s})\right],
+  \qquad \omega_s\ge0,\quad\sum_s\omega_s=1,
+  \label{eq:scenario-objective}
+\end{equation}
+并对全部运行决策施加相同信息节点下的共享约束~\eqref{eq:nonanticipativity}。预测器、情景数量及风险参数的具体选择需要依据历史验证确定，不由理论目标预先判定优劣。
+
+\input{sections/problem2_results}
+
+\section{问题三：预报更新下的滚动调整}
+
+\subsection{预报版本与合同状态}
+
+令 $\mathcal K=\{0,36,72,108\}$，对应每日四个预报发布时刻。用 $q_t^{(k)}$ 表示在更新时点 $k$ 制定的时段 $t$ 的有效合同，其中 $q_t^{(0)}=q_t^0$。当 $k>0$ 时，仅允许改变 $t\ge k$ 的合同；已经交付的部分及其费用保持固定。
+
+同一目标时刻可能具有多个光伏预报版本，应按发布时间选取当前已获得的最新版本。整点预报到 $10$ 分钟执行尺度的转换只能使用该已发布版本及已知锚点，不能以未来实测光伏补齐端点。超出当日的预报可用于判断终端资源价值，但不赋予提前提交次日正式合同的权限。
+
+\subsection{分段调整费用}
+
+记时段 $t$ 最后有效的合同为 $q_t$，相对日前基准的净上调、净下调电量分别为
+\begin{equation}
+  \delta_t^+=(q_t-q_t^0)^+,\qquad
+  \delta_t^-=(q_t^0-q_t)^+.
+  \label{eq:adjustment}
+\end{equation}
+题面给出了上调 $1.5$ 倍、下调 $50\%$ 的计价比例，但未明确取消电量是否退回原费用。本文主模型采用原计划全额计费、调整费用另计的解释：
+\begin{equation}
+  K_t=p_tq_t^0+1.5p_t\delta_t^++0.5p_t\delta_t^-.
+  \label{eq:contract-cost}
+\end{equation}
+从而当天实际购电费为
+\begin{equation}
+  C_3^{\rm cash}=\sum_{t\in\mathcal T}
+  \left(p_tq_t^0+1.5p_t\delta_t^++0.5p_t\delta_t^-+5p_te_t\right).
+  \label{eq:problem3-cash}
+\end{equation}
+本文按每个交付时段最后有效合同相对于 $0{:}00$ 原计划统一结算，各次优化产生的合同版本不重复收费。若每次修改均单独收取费用，则应采用逐笔交易账本，属于另一种结算规则。
+
+作为解释差异的对照，若取消部分退还原电费后再收取 $50\%$ 违约费，则普通合同费用应改为
+\begin{equation}
+  K_t^{\rm refund}=p_tq_t^0+1.5p_t\delta_t^+-0.5p_t\delta_t^-.
+  \label{eq:refund-cost}
+\end{equation}
+两种口径对上调的处理相同，对下调的经济含义则不同。在正电价及未利用计划电量可无成本弃用的假设下，式~\eqref{eq:contract-cost} 中将合同降至日前基准以下没有费用优势：保留基准合同至少提供相同的取电选择，且免除下调罚金。这一性质由所采用的结算规则推出，不依赖实验结果。
+
+\subsection{滚动决策与信息价值}
+
+在更新时点 $k$，以实际 $E_k$、已保存合同及新信息 $\mathcal I_k$ 为条件，优化尚未交付部分：
+\begin{equation}
+  \min_{\pi\in\Pi_k}
+  \mathbb E\left[
+  \sum_{t=k}^{T-1}(K_t+5p_te_t)+\Phi(E_T)
+  \,\middle|\,\mathcal I_k\right].
+  \label{eq:problem3}
+\end{equation}
+其中 $\Pi_k$ 限制普通合同只能在剩余允许时点调整，并要求未来动作满足信息约束。求解后只提交当前允许作出的合同修改，执行当前储能动作；后续更新仍依据届时真实状态进行。若实施中以单条预测轨迹近似未来，应将其称为滚动近似策略，不能与多阶段随机最优策略等同。
+
+新的预报既可以影响合同，也可以只影响储能运行。以相同真实轨迹、初始状态和结算口径比较更新与不更新两种策略，定义净信息价值为
+\begin{equation}
+  \operatorname{VOI}_{\rm net}
+  =\mathbb E[C_{\rm no\ update}^{\rm cash}]
+   -\mathbb E[C_{\rm update}^{\rm cash}].
+  \label{eq:voi}
+\end{equation}
+两项均包含各自的调整费，故不再额外扣除该费用。若两类策略允许选择相同动作，且新信息可以忽略，在正确概率模型下增加信息不会提高最优预期费用；有限数据和近似控制下的实际收益仍须通过回放评价。
+
+附件只提供四个外部预报时点，不能直接据此获得其他时刻的真实新增预报。新增时点的必要性应先由现有时点的边际收益判断，再区分基于历史观测的本地预测更新与假设存在的外部预报改善，分别说明其数据来源和适用条件。
+
+\subsection{求解结果}
+
+【待补充：滚动策略的具体实现与参数；四个指定日期结果；计划、调整及紧急购电费用；预报信息与合同调整权限的分离比较；新增时点的证据及结论。】
+
+\section{问题四：实时价格下的模型扩展}
+
+\subsection{价格信息与结算约定}
+
+实时价格条件下，未来随机变量扩展为 $\xi_t=(\ell_t,v_t,p_t)$。日前及日内规划使用
+\begin{equation}
+  \mathbb P(\ell_{t:H},v_{t:H},p_{t:H}\mid\mathcal I_t)
+  \label{eq:joint-price}
+\end{equation}
+描述未来供需与价格，实际费用按逐时实现的价格结算。本文将题面中的交易时刻电价解释为对应电量交付时段的价格；若采用合同修改提交时刻的报价，则需分别记录提交与交付价格，不能沿用同一费用表达式。
+
+价格与净负荷的相关性会影响高额补购事件。一般而言，$\mathbb E[p_te_t\mid\mathcal I_0]$ 不能直接写成两者条件均值的乘积，因而联合情景应保留高价格与较大供能缺口同时出现的可能性。
+
+\subsection{固定合同与可调整合同两类扩展}
+
+对应问题二，目标变为
+\begin{equation}
+  \min_{\boldsymbol q^0,\pi^{\rm op}}
+  \mathbb E\left[
+  \sum_{t\in\mathcal T}p_t(q_t^0+5e_t)+\Phi(E_T)
+  \,\middle|\,\mathcal I_0\right],
+  \label{eq:problem42}
+\end{equation}
+约束与问题二一致。由于 $q_t^0$ 在日前已确定，普通购电项由条件期望价格影响；紧急补购仍取决于价格与供需的联合实现。
+
+对应问题三，在允许更新时点 $k$ 求解
+\begin{equation}
+  \min_{\pi\in\Pi_k}
+  \mathbb E\left[
+  \sum_{t=k}^{T-1}p_t\bigl(q_t^0+1.5\delta_t^++0.5\delta_t^-+5e_t\bigr)
+  +\Phi(E_T)\,\middle|\,\mathcal I_k\right],
+  \label{eq:problem43}
+\end{equation}
+其合同权限、物理约束与结算基准保持不变。选择退款解释时，仅替换对应下调项。
+
+上述主模型不预设已知全天真实价格，也不预设价格与负荷独立。价格符号尚需由附件核验；若存在负价，正电价条件下的局部经济结论不再适用，且无限普通合同与免费弃用的组合可能导致目标无界，需要在明确交易边界后重新建模。
+
+\subsection{求解结果}
+
+【待补充：价格数据特征及预测实现；两类策略的结果工作簿、指定日期和总体指标；同一价格环境下的策略比较与风险分析。】
