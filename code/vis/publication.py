@@ -132,7 +132,7 @@ def q2_figures(main,comparison,trajectories,sensitivity,dates,folder,battery=Non
 
     fig,axes=plt.subplots(1,3,figsize=figure_size(70),layout="constrained")
     for ax,letter,parameter,label,scale,base in zip(axes,"abc",["quantile","capacity","penalty"],
-                 ["风险分位数","容量 (MWh)","紧急电价倍率"],[1,1000,1],[.8,battery.capacity_kwh,5]):
+                 ["风险分位数","容量 (MWh)","紧急电价倍率"],[1,1000,1],[float(main.risk_quantile.iloc[0]),battery.capacity_kwh,5]):
         group=sensitivity[sensitivity.parameter==parameter].groupby("value").value_adjusted_cost_yuan.sum()/1e4
         ax.plot(group.index/scale,group.values,"o-",color=C["grid"],mfc="white",ms=4)
         if base in group.index:ax.scatter(base/scale,group.loc[base],color=C["grid"],s=26,zorder=4)
@@ -165,3 +165,24 @@ def q2_risk_figure(comparison,paired,folder):
     ax.set_xlabel("主策略日均节省 (千元)");ax.margins(x=.18,y=.18)
     ax.grid(axis="x");panel(ax,"b","配对节费的不确定性")
     finish(fig,folder,"q2_risk_tradeoff","CVaR为日紧急费用的经验95%尾部均值；误差线为七日循环块重采样95%区间而非标准差；正值表示主策略节省。")
+
+
+def q2_boundary_figure(comparison,main,frames,folder):
+    apply_paper_style();fig,axes=plt.subplots(1,2,figsize=figure_size(87),layout="constrained")
+    chosen=[("B48",main,"48小时",C["grid"],"-"),
+            ("matched24",frames["matched24"],"24小时同参",C["baseline"],"--"),
+            ("A24",frames["A24"],"替代成本",C["reference"],"-.")]
+    for name,frame,label,color,ls in chosen:
+        state=np.r_[frame.groupby("slot").soc_start_kwh.mean(),frame[frame.slot==143].soc_end_kwh.mean()]/1000
+        axes[0].plot(np.arange(145)/6,state,color=color,ls=ls,label=label)
+    axes[0].set(xlabel="时刻 (h)",ylabel="平均储电量 (MWh)",ylim=(0,12));time_axis(axes[0])
+    panel(axes[0],"a","跨日资源配置")
+    handles,labels=axes[0].get_legend_handles_labels()
+    fig.legend(handles,labels,ncol=3,loc="outside lower center")
+    table=comparison.set_index("variant");x=np.arange(2)
+    for i,(name,_,label,color,ls) in enumerate(chosen):
+        values=table.loc[name,["early_charge_mean_kwh","late_charge_mean_kwh"]].to_numpy(float)/1000
+        axes[1].bar(x+(i-1)*.24,values,width=.22,color=color,hatch=[None,"///",".."][i],label=label)
+    axes[1].set_xticks(x,["00:00–06:00","22:00–24:00"]);axes[1].set_ylabel("日均充电量 (MWh)")
+    axes[1].set_ylim(bottom=0);clean_axis(axes[1]);panel(axes[1],"b","充电时序迁移")
+    finish(fig,folder,"q2_boundary","334天逐时SOC与分段充电量的均值；相同预测器、分位数及控制器；均值不代表任一实际单日轨迹。")

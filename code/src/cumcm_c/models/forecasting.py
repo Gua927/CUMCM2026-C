@@ -9,19 +9,23 @@ def smooth(x, width=3):
     return sum(np.roll(x, k, axis=-1) for k in range(-width//2+1, width//2+1))/width
 
 
-def predict(history, mode="trend", window=28):
+def predict(history, mode="trend", window=28, lead_days=1):
     """history shape (completed days, 144, 2), units kWh. Never accepts future rows."""
     history = np.asarray(history, float)
     n = len(history)
+    if not isinstance(lead_days,int) or not 1<=lead_days<=7:
+        raise ValueError("Direct forecast lead must be 1..7 completed-day steps")
     if n < 7 or not np.isfinite(history).all():
         raise ValueError("At least seven complete finite historical days required")
     if mode == "seasonal":
-        return np.maximum(np.stack([history[-7, :, 0], history[-1, :, 1]], axis=-1), 0)
+        return np.maximum(np.stack([history[lead_days-8, :, 0], history[-1, :, 1]], axis=-1), 0)
     if mode != "trend":
         raise ValueError(mode)
     # Weekday is learned by lag 7, without assuming which calendar days are weekends.
-    lag = history[np.arange(n-7, max(-1, n-window-1), -7), :, 0]
-    ages = np.arange(len(lag))*7+7
+    target=n+lead_days-1
+    indices=np.arange(target-7,max(-1,n-window-1),-7)
+    lag = history[indices, :, 0]
+    ages = target-indices
     if len(lag) >= 2:
         centered = ages-ages.mean()
         slope = np.sum(centered[:, None]*(lag-lag.mean(0)), axis=0)/np.sum(centered**2)
@@ -32,7 +36,7 @@ def predict(history, mode="trend", window=28):
     pv_hist = history[-min(14, n):, :, 1]
     x = np.arange(len(pv_hist), dtype=float); center = x-x.mean()
     slope = np.sum(center[:, None]*pv_hist, axis=0)/np.sum(center**2)
-    pv = pv_hist.mean(0)+0.75*(len(pv_hist)-x.mean())*slope
+    pv = pv_hist.mean(0)+0.75*(len(pv_hist)+lead_days-1-x.mean())*slope
     load = 0.75*smooth(load, 3)+0.25*load
     pv = smooth(pv, 3)
     return np.maximum(np.stack([load, pv], axis=-1), 0)
@@ -47,6 +51,37 @@ def build_forecasts(actual, settings):
             forecasts[day] = predict(actual[:day], mode, settings["forecast_window_days"])
         result[mode] = forecasts
     return result
+
+
+def build_horizon_forecasts(actual,settings):
+    """[issue day, lead index, slot, load/PV]; all leads share the same cutoff.
+
+    Final issue day still predicts beyond Dec 31. No unknown actual row is needed.
+    """
+    h=settings["forecast_horizon_days"];result={}
+    for mode in ("seasonal","trend"):
+        values=np.full((len(actual),h,*actual.shape[1:]),np.nan)
+        for issue in range(7,len(actual)):
+            for lead in range(h):
+                values[issue,lead]=predict(actual[:issue],mode,settings["forecast_window_days"],lead+1)
+        result[mode]=values
+    return result
+
+
+def horizon_distributions(actual_history,issued_history,points,window=56,error_scale=1.0):
+    """Only matured, lead-matched forecast errors; target=origin+lead < now.
+
+    Separate marginal profiles do not claim a calibrated joint multi-day law.
+    """
+    n=len(actual_history)
+    if len(issued_history)!=n:raise ValueError("Forecast history and observation cutoff differ")
+    output=[]
+    for lead,point in enumerate(points):
+        # At issue n, lead-2 forecasts from origin n-1 have NOT matured.
+        if n<=lead:raise ValueError("Insufficient completed history")
+        output.append(net_distribution(actual_history[lead:],issued_history[:n-lead,lead],
+                                       point,window,error_scale))
+    return output
 
 
 def net_distribution(actual_history, forecast_history, point, window=56, error_scale=1.0):

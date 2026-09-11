@@ -26,6 +26,8 @@
   \texttt{problem2-dashboard.html} & 第二问日期选择与逐时离线交互图 \\
   \texttt{visualization-gallery.html} & 全文科学图形索引及PDF、SVG、PNG下载 \\
   \texttt{runs/visuals/} & 独立视觉版本、样式规范、源码及数值保护哈希 \\
+  \texttt{issued\_plans.csv} & 第二问各起报日48小时预测及辅助规划，位于对应数值归档 \\
+  \texttt{boundary/} & 24/48/72小时及远端残值的完整对照轨迹，位于第二问归档 \\
   \texttt{AI工具使用详情.pdf} & AI 工具使用过程、人工修改与核验记录 \\
   \bottomrule
 \end{longtable}
@@ -34,7 +36,7 @@
 
 第一问执行流程为：校核附件与时间映射，构建并分层求解整数模型，计算线性松弛与对偶校验，独立审计运行轨迹，计算对照与敏感性，回读校验工作簿，最后将成功结果发布到固定入口并保留版本归档。运行失败时保存诊断，不发布为有效结果。可在项目根目录执行 \texttt{make solve-q1} 重算，执行 \texttt{make check-q1} 对最近归档作独立检查。
 
-第二问执行流程为：仅以一月历史滚动预测并选择风险参数和控制器，冻结数值参数；随后按日期生成预测与历史残差分布，以实际日初SOC求解固定合同，逐时因果执行并继承日末SOC；分别核算合同和紧急购电，完成基线、扰动与工作簿回读。运行 \texttt{make solve-q2} 重算，运行 \texttt{make check-q2} 独立验证最近归档。
+第二问执行流程为：以同一信息截止点生成多提前期预测，仅按已成熟的预测误差校准风险轮廓；一月选型后冻结参数，每日求解48小时代理规划，仅提交前144时段合同，逐时执行并继承真实日末SOC；完成完整年度边界对照、局部敏感性及工作簿回读。运行\texttt{make solve-q2}重算，运行\texttt{make check-q2}核验实际及辅助轨迹，并因果重建保存的预测。
 
 【待补充：问题三、四的实际算法流程。】
 
@@ -68,11 +70,13 @@
 \lstinputlisting[language=Python,caption={问题二固定合同与因果储能控制}]{../code/src/cumcm_c/models/problem2.py}
 \lstinputlisting[language=Python,caption={问题二独立物理费用校验与聚合}]{../code/src/cumcm_c/models/problem2_evaluation.py}
 \lstinputlisting[language=Python,caption={问题二参数校准、连续回放与版本归档}]{../code/src/cumcm_c/problem2_workflow.py}
+\lstinputlisting[language=Python,caption={问题二边界比较及论文数字生成}]{../code/src/cumcm_c/problem2_reporting.py}
 \lstinputlisting[language=Python,caption={问题二官方模板展开与回读校验}]{../code/src/cumcm_c/problem2_export.py}
 \lstinputlisting[language=Python,caption={问题二图形及离线交互图}]{../code/vis/problem2.py}
 \lstinputlisting[language=Python,caption={问题二求解入口}]{../code/scripts/solve_problem2.py}
 \lstinputlisting[language=Python,caption={问题二归档独立校验入口}]{../code/scripts/validate_problem2.py}
 \lstinputlisting[language=Python,caption={问题二手算案例和因果性测试}]{../code/tests/test_problem2.py}
+\lstinputlisting[language=Python,caption={跨日规划、成熟误差与合同边界测试}]{../code/tests/test_problem2_horizon.py}
 % \lstinputlisting[language=Python,caption={问题三求解程序}]{../code/src/cumcm_c/models/problem3.py}
 % \lstinputlisting[language=Python,caption={问题四求解程序}]{../code/src/cumcm_c/models/problem4.py}
 % \lstinputlisting[language=Python,caption={独立评估与校验程序}]{../code/src/cumcm_c/models/evaluation.py}

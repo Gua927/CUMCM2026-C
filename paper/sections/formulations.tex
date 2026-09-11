@@ -99,7 +99,7 @@
   \Phi(E_H)=-\nu_HE_H,\qquad \nu_H\ge0,
   \label{eq:terminal-value}
 \end{equation}
-其中 $\nu_H$ 为每单位电池内部电量的后续价值，单位为元/kWh，需由此前可用数据校准。负号表示保留资源带来收益；该项不属于当期实际购电费。
+其中 $\nu_H$ 为每单位电池内部电量的后续价值，单位为元/kWh，取值依据及敏感性须明确。负号表示保留资源带来收益；该项不属于当期实际购电费。线性表达不是唯一处理方式：问题二主实现将窗口延伸至48小时，使当日24时的资源价值由次日可行调度成本内生决定，而远端取$\Phi_{288}=0$；以72小时及固定远端残值检查剩余截断效应。没有每天恢复初值的硬约束，也不将远端零成本解释为未来资源没有价值。
 
 \subsection{统一目标函数}
 
@@ -166,7 +166,7 @@
 
 问题二在每日 $0{:}00$ 决定整天的 $\boldsymbol q^0$，随后普通合同保持不变。以 $\mathcal I_{j,0}$ 表示第 $j$ 日日前信息集，未来负荷与光伏由条件分布
 \begin{equation}
-  \mathbb P(\boldsymbol\ell_j,\boldsymbol v_j\mid\mathcal I_{j,0})
+  \mathbb P(\boldsymbol\ell_{j:j+1},\boldsymbol v_{j:j+1}\mid\mathcal I_{j,0})
   \label{eq:load-pv-distribution}
 \end{equation}
 描述。采用情景近似时，每条情景应是一段联合日轨迹，而非彼此独立抽取的 $144$ 个单点误差。负荷与光伏可以分别预测，但其成对误差及跨时段关联需要在净负荷情景中保留。
@@ -196,7 +196,7 @@
   \min_{\boldsymbol q^0,\pi^{\rm op}}\quad
   &\sum_{t\in\mathcal T}p_tq_t^0+
   \mathbb E\left[
-    \sum_{t\in\mathcal T}5p_te_t+\Phi(E_T)
+    \sum_{t\in\mathcal T}5p_te_t+J^{\rm next}_{j}(E_T)
     \,\middle|\,\mathcal I_{j,0}\right],\\
   \text{s.t.}\quad
   &q_t=q_t^0,\qquad t\in\mathcal T,\\
@@ -205,6 +205,8 @@
 \label{eq:problem2}
 \end{equation}
 第一项对未利用的计划电量同样收费；第二项反映运行中真正发生的补购。储能动作依赖当前电量和已获得信息，但不能更改固定普通合同。
+
+$J^{\rm next}_{j}$表示在当前信息下保留日末电量所对应的后续运行成本。下文以次日风险轮廓下的确定性调度近似该函数；实际算法并未精确求解上述期望策略优化问题。次日辅助决策不属于当天提交合同。
 
 若采用 $S$ 条情景及概率 $\omega_s$，期望项可近似为
 \begin{equation}

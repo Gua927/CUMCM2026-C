@@ -12,7 +12,7 @@ import pandas as pd
 from cumcm_c.paths import PATHS
 from cumcm_c.models.common import Battery
 from .style import CONFIG_PATH,STYLE,C,theme_dashboard
-from .publication import q1_figures,q2_figures,q2_risk_figure
+from .publication import q1_figures,q2_figures,q2_risk_figure,q2_boundary_figure
 from .problem1 import dashboard as dashboard1
 from .problem2 import dashboard as dashboard2
 
@@ -48,6 +48,9 @@ def build():
         main=trajectories["risk_policy"]
         q2_figures(main,comparison,trajectories,pd.read_csv(f/"sensitivity.csv"),cfg2["report_dates"],out/"figures",Battery(**cfg2["battery"]))
         q2_risk_figure(comparison,json.loads((f/"paired_comparisons.json").read_text()),out/"figures")
+        if (f/"boundary_comparison.csv").exists():
+            boundary_frames={name:pd.read_csv(f/f"boundary/{name}.csv") for name in ("matched24","A24")}
+            q2_boundary_figure(pd.read_csv(f/"boundary_comparison.csv"),main,boundary_frames,out/"figures")
         dashboard2(main,sources["problem2"]["summary"],out/"problem2-dashboard.html",Battery(**cfg2["battery"]))
         for path in (PATHS.root/"code/vis").glob("*.py"):shutil.copy2(path,out/"source"/path.name)
         for relative in ("code/scripts/render_publication.py","code/tests/test_visual_style.py"):
@@ -82,7 +85,7 @@ def build():
           "artifacts":{str(p.relative_to(out)):digest(p) for p in out.rglob("*") if p.is_file() and p.name!="manifest.json"}}
         write_json(out/"manifest.json",manifest)
         write_json(out.parent/"latest.json",{"path":str(out.relative_to(PATHS.root)),"version":version,"style_version":STYLE["version"]})
-        print(f"Published 7 figure sets (PDF/SVG/PNG), themed dashboards; all numerical hashes unchanged: {out}")
+        print(f"Published {len(list((out/'figures').glob('*.pdf')))} figure sets; all numerical hashes unchanged: {out}")
         return out
     except Exception as exc:
         write_json(out/"manifest.json",{"status":"failed","version":version,"error":repr(exc)})
@@ -94,6 +97,7 @@ def gallery(folder,target):
        "q1_sensitivity":"03 / 设备参数的边际影响","q2_selected_days":"04 / 四个指定日期的因果运行",
        "q2_cost_comparison":"05 / 费用分解与季节变化","q2_sensitivity":"06 / 风险参数的局部敏感性",
        "q2_risk_tradeoff":"07 / 平均收益、尾部风险与比较不确定性"}
+    if (folder/"q2_boundary.style.json").exists():descriptions["q2_boundary"]="08 / 跨日资源配置与充电时序"
     cards=[]
     for name,title in descriptions.items():
         meta=json.loads((folder/f"{name}.style.json").read_text())

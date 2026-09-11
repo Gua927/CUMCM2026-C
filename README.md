@@ -8,11 +8,11 @@ Agent 开始工作前应先阅读 [[Project/CUMCM 2026/Agent.md]]。
 
 第一问已实现：`make solve-q1`。查看[结果说明](output/problem1-report.md)、[交互调度图](output/problem1-dashboard.html)、[官方结果工作簿](output/results/result1.xlsx)和[版本索引](output/runs/problem1/latest.json)。每次运行均保存独立归档，供后续修改和比较。
 
-第二问已实现：`make solve-q2`，独立核验 `make check-q2`。查看[第二问结果与方法](output/problem2-report.md)、[逐日交互图](output/problem2-dashboard.html)、[官方工作簿](output/results/result2.xlsx)及[版本索引](output/runs/problem2/latest.json)。采用一月选型、二月至十二月因果回放，合同固定、SOC跨日连续；沿用已确认的日循环时标。
+第二问已改为B方案：`make solve-q2`，独立核验 `make check-q2`。查看[结果与方法](output/problem2-report.md)、[跨日修订说明](output/problem2-B-analysis.md)、[逐日交互图](output/problem2-dashboard.html)、[官方工作簿](output/results/result2.xlsx)及[版本索引](output/runs/problem2/latest.json)。每日同一信息集预测48小时，仅提交当天144时段合同，实际SOC连续；一月24组合选型、二月至十二月因果回放。保留旧版与A、72小时、远端残值对照，不预设更长视窗必然节费。沿用已确认的日循环时标。
 
 > 比赛期间不得将仓库公开，也不得在公开平台发布或讨论赛题。本地 Git 仅用于本队版本管理。
 
-科研图形已统一为克制的期刊风格：查看[图形总览](output/visualization-gallery.html)、[论文PDF](output/paper/main.pdf)和[长期风格规范](code/vis/STYLE_GUIDE.md)。运行 `make figures` 可从已核验结果重绘7组PDF/SVG/PNG及交互图，不重新求解，不改数值归档或结果工作簿。[集中配置](code/config/visual_style.json)与共同绘图接口同样约束后续问题三、四；每次视觉修改独立保存于 `output/runs/visuals/`。
+科研图形已统一为克制的期刊风格：查看[图形总览](output/visualization-gallery.html)、[论文PDF](output/paper/main.pdf)和[长期风格规范](code/vis/STYLE_GUIDE.md)。运行 `make figures` 可从已核验结果重绘8组PDF/SVG/PNG及交互图，不重新求解，不改数值归档或结果工作簿。[集中配置](code/config/visual_style.json)与共同绘图接口同样约束后续问题三、四；每次视觉修改独立保存于 `output/runs/visuals/`。
 
 ## 目录结构
 

@@ -63,7 +63,7 @@ def checked_lp(obj, eq, rhs, bounds):
     return result, residual
 
 
-def plan_day(net, prices, initial, battery, dt, terminal_value):
+def plan_day(net, prices, initial, battery, dt, terminal_value=0.0):
     """Q1 physics on a risk-adjusted net-load trajectory, with terminal value.
 
     Positive prices + free spill permit removing simultaneous cycling without
@@ -87,6 +87,12 @@ def plan_day(net, prices, initial, battery, dt, terminal_value):
     if value > result.fun+2e-5:
         raise RuntimeError("Cycle removal increased objective")
     return Plan(contract, charge, discharge, energy, value, residual)
+
+
+def commit_first_day(plan,slots):
+    """A forecast tail is advisory, never a second signed contract."""
+    if not 0<slots<=len(plan.contract):raise ValueError("Invalid commitment horizon")
+    return plan.contract[:slots].copy(),plan.energy[:slots+1].copy()
 
 
 def control_targets(net, contract, prices, initial, battery, dt, multiplier, terminal_value):
@@ -126,18 +132,28 @@ def execute_step(load, pv, contract, energy, target, battery, dt, greedy=False, 
 
 
 def execute_day(actual, point, contract, prices, initial, battery, dt, settings,
-                multiplier=5, terminal_value=0.5, controller="mpc", reference=None):
+                multiplier=5, terminal_value=0.0, controller="mpc", reference=None,
+                advisory_point=None,advisory_contract=None,advisory_prices=None):
     n = len(prices);net = actual[:, 0]-actual[:, 1];pred = point[:, 0]-point[:, 1]
-    energy = initial;rows=[];target = np.full(n+1, initial);max_residual=0.0
+    full_point=point if advisory_point is None else advisory_point
+    full_contract=contract if advisory_contract is None else advisory_contract
+    full_prices=prices if advisory_prices is None else advisory_prices
+    if not (len(full_point)==len(full_contract)==len(full_prices)):
+        raise ValueError("Advisory horizon lengths differ")
+    if not (np.allclose(full_point[:n],point) and np.allclose(full_contract[:n],contract)
+            and np.allclose(full_prices[:n],prices)):
+        raise ValueError("Advisory prefix must equal committed day")
+    pred=full_point[:,0]-full_point[:,1]
+    energy = initial;rows=[];target = np.full(len(pred)+1, initial);max_residual=0.0
     cadence=settings["controller_update_slots"]
     for t in range(n):
         if controller == "mpc" and t % cadence == 0:
             # At t: earlier intervals and the currently measured net load only.
             window=settings["online_bias_window_slots"]
             bias = float(np.mean(net[max(0,t-window):t]-pred[max(0,t-window):t])) if t else 0.0
-            future = pred[t:].copy()+bias*np.exp(-np.arange(n-t)/settings["online_bias_decay_slots"])
+            future = pred[t:].copy()+bias*np.exp(-np.arange(len(pred)-t)/settings["online_bias_decay_slots"])
             future[0] = net[t]
-            targets,residual=control_targets(future,contract[t:],prices[t:],energy,battery,dt,
+            targets,residual=control_targets(future,full_contract[t:],full_prices[t:],energy,battery,dt,
                                              multiplier,terminal_value)
             target[t:] = targets;max_residual=max(max_residual,residual)
         if controller == "reference":
