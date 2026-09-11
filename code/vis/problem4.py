@@ -13,9 +13,9 @@ METHOD_LABELS = {"fixed": "附件 1 轮廓", "lag7": "上周同日", "weekday": 
 WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 # Cost ladders: (row label, comparison strategy or reference key, paired key whose saving links this row to the previous one)
 LADDERS = (("4-2 固定合同（第二问机制）", (("固定电价（第二问）", "ref:q2", None), ("附件 1 轮廓规划", "q42_fixed_profile", None),
-                                  ("因果预测（主策略）", "q42_forecast", "q42_fixed_profile"), ("价格已知（上界）", "q42_perfect_price", "q42_perfect_price"))),
+                                  ("因果预测（主策略）", "q42_forecast", "q42_fixed_profile"), ("价格预知（启发式对照）", "q42_perfect_price", "q42_perfect_price"))),
            ("4-3 有偿调整（第三问机制）", (("固定电价（第三问）", "ref:q3", None), ("附件 1 轮廓规划", "q43_fixed_profile", None),
-                                  ("因果预测（主策略）", "q43_forecast", "q43_fixed_profile"), ("价格已知（上界）", "q43_perfect_price", "q43_perfect_price"))))
+                                  ("因果预测（主策略）", "q43_forecast", "q43_fixed_profile"), ("价格预知（启发式对照）", "q43_perfect_price", "q43_perfect_price"))))
 
 
 def q4_figures(frames, comparison, price_table, errors, references, fixed_profile, folder, paired=None):
@@ -115,7 +115,10 @@ def q4_costs(comparison, references, paired, folder):
         gain = x42-x43; low, high = np.array(paired["q42_forecast"]["ci95_mean_daily_yuan"])*to_year; xb = max(values)+.62*span
         ax.plot([xb, xb], [y42, y43], color=C["grid"], lw=.9); ax.plot([xb-.025*span, xb, np.nan, xb-.025*span, xb], [y42, y42, np.nan, y43, y43], color=C["grid"], lw=.9)
         gap_y = (headers[1][0]+rows[3][0])/2
-        inside(ax.annotate(f"机制效应 −{gain:.1f} 万 (−{gain/x42*100:.2f}%)\n4-3 相对 4-2 主策略，95% 区间 [{low:.1f}, {high:.1f}] 万", (xb, gap_y), xytext=(-5, 0), textcoords="offset points", va="center", ha="right", fontsize=8, color=C["grid"], linespacing=1.35))
+        # R10: the 4-3 vs 4-2 gap combines the 0:00 external-forecast fusion (plan only) and the paid intraday adjustment.
+        external = x42-cost("q43_plan_only") if "q43_plan_only" in table.index else float("nan"); adjust = gain-external
+        inside(ax.annotate(f"信息集+调整机制合计 −{gain:.1f} 万 (−{gain/x42*100:.2f}%)\n其中 0:00 融合预报 −{external:.1f} 万，日内有偿调整 −{adjust:.1f} 万\n4-3 相对 4-2 主策略，95% 区间 [{low:.1f}, {high:.1f}] 万",
+                           (xb, gap_y), xytext=(-5, 0), textcoords="offset points", va="center", ha="right", fontsize=8, color=C["grid"], linespacing=1.35))
     panel(ax, "a", "费用阶梯：结算、预测与信息效应")
     axb.barh([r[0] for r in rows], [emergency(r[2]) for r in rows], height=.58, color=[C["grid"] if "forecast" in r[2] else C["baseline"] for r in rows],
              hatch=["" if "forecast" in r[2] else "///" for r in rows], edgecolor="white", lw=.5)
@@ -123,5 +126,5 @@ def q4_costs(comparison, references, paired, folder):
         inside(axb.annotate(f"{emergency(r[2]):.1f}", (emergency(r[2]), r[0]), xytext=(3, 0), textcoords="offset points", va="center", fontsize=8))
     axb.set_ylim(ax.get_ylim()); axb.set_yticks([]); axb.set_xlim(0, max(emergency(r[2]) for r in rows)*1.3); axb.set_xlabel("紧急购电量 (万 kWh)")
     axb.spines[["top", "right", "left"]].set_visible(False); axb.grid(False); panel(axb, "b", "紧急购电量")
-    save_figure(fig, folder, "q4_costs", "a：两族策略的334天现金费用阶梯，浮动条为相邻行之差（橙为增加，蓝为减少，点纹为信息放宽上界），横轴不从零起；短横线为该差值的95%配对区间；右侧括线连接两族主策略。b：各行策略的紧急购电量，条形从零起。")
+    save_figure(fig, folder, "q4_costs", "a：两族策略的334天现金费用阶梯，浮动条为相邻行之差（橙为增加，蓝为减少，点纹为当日价格预知的启发式对照，不是最优费用界限），横轴不从零起；短横线为该差值的95%配对区间；右侧括线连接两族主策略，并把差值拆为0:00融合预报与日内有偿调整两部分。b：各行策略的紧急购电量，条形从零起。")
     plt.close(fig)

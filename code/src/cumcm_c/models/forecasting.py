@@ -98,3 +98,26 @@ def risk_profile(scenarios, quantile):
     if not 0 < quantile < 1:
         raise ValueError("Quantile must lie in (0,1)")
     return np.quantile(scenarios, quantile, axis=0)
+
+
+def price_weighted_quantile(scenarios, prices, quantile):
+    """Smallest value whose price-weighted cumulative mass reaches `quantile` (review item R01).
+
+    With scenario prices P_s and net loads D_s, the single-slot cost E[P q + 5 P (D-q)^+]
+    is minimised at the quantile of F^{(P)}(q) = E[P 1{D <= q}] / E[P], not of the plain
+    demand distribution; when prices are constant across scenarios the two coincide.
+    `scenarios` is (S, n) or (S,), `prices` broadcasts to it. This helper documents and
+    tests the corrected condition; the published policies do not yet use it.
+    """
+    values = np.asarray(scenarios, float); single = values.ndim == 1
+    values = values[:, None] if single else values
+    weights = np.asarray(prices, float); weights = weights[:, None] if weights.ndim == 1 else weights
+    weights = np.broadcast_to(weights, values.shape)
+    if not 0 < quantile < 1 or np.any(weights < 0) or not np.isfinite(values).all():
+        raise ValueError("Quantile in (0,1), non-negative prices and finite scenarios required")
+    order = np.argsort(values, axis=0)
+    sorted_values = np.take_along_axis(values, order, axis=0); sorted_weights = np.take_along_axis(weights, order, axis=0)
+    mass = np.cumsum(sorted_weights, axis=0)/np.maximum(sorted_weights.sum(axis=0, keepdims=True), 1e-300)
+    index = np.argmax(mass >= quantile-1e-12, axis=0)
+    out = np.take_along_axis(sorted_values, index[None, :], axis=0)[0]
+    return float(out[0]) if single else out

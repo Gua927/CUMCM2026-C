@@ -141,15 +141,70 @@ def audit_decisions(logs, releases):
     return {"passed": True, "days": len(logs), "release_slots": list(releases)}
 
 
+def audit_plans(records, frame, battery, dt, tolerance=2e-5):
+    """Saved 0:00 planning horizons (288 slots) must be feasible and match the committed day.
+
+    Committed rows (lead_days 1) must equal the trajectory's plan and start at its actual
+    SOC; advisory rows (lead_days 2) are planning variables only. Every row must satisfy
+    the state transition, the SOC and power limits, and contract >= risk + charge - discharge.
+    """
+    if not np.isfinite(records.select_dtypes(include="number")).all().all():
+        raise ValueError("Non-finite plan record")
+    if "lead_days" not in records:
+        records = records.assign(lead_days=1, is_committed=True)
+    worst = 0.0; count = 0
+    for issue, part in records.groupby("issue_date", sort=True):
+        part = part.sort_values(["lead_days", "slot"]).reset_index(drop=True); count += 1
+        leads = part.lead_days.to_numpy()
+        if not np.array_equal(part.slot[leads == 1], np.arange(144)) or (leads.max() == 2 and not np.array_equal(part.slot[leads == 2], np.arange(144))):
+            raise ValueError("Plan record must cover whole days")
+        if not part.is_committed.astype(bool).to_numpy()[leads == 1].all() or part.is_committed.astype(bool).to_numpy()[leads == 2].any():
+            raise ValueError("Only the first day of a plan may be committed")
+        E = part.soc_start_kwh.to_numpy(); F = part.soc_end_kwh.to_numpy(); q = part.plan_kwh.to_numpy(); risk = part.risk_net_kwh.to_numpy()
+        c = part.charge_kwh.to_numpy() if "charge_kwh" in part else np.maximum(F-E, 0)/battery.charge_efficiency
+        d = part.discharge_kwh.to_numpy() if "discharge_kwh" in part else np.maximum(E-F, 0)*battery.discharge_efficiency
+        errors = [np.max(abs(F-E-battery.charge_efficiency*c+d/battery.discharge_efficiency)), np.max(abs(E[1:]-F[:-1])),
+                  max(0, battery.soc_min_kwh-min(E.min(), F.min()), max(E.max(), F.max())-battery.soc_max_kwh),
+                  max(0, c.max()-battery.max_charge_power_kw*dt, d.max()-battery.max_discharge_power_kw*dt),
+                  max(0, -min(c.min(), d.min(), q.min())), np.max(np.minimum(c, d)), max(0, -np.min(q+d-c-risk))]
+        realized = frame[frame.date == issue]
+        if len(realized) != 144:
+            raise ValueError("Missing execution day for a plan record")
+        errors.append(abs(E[0]-realized.soc_start_kwh.iloc[0]))
+        errors.append(np.max(abs(q[leads == 1]-realized.planned_grid_kwh.to_numpy())))
+        worst = max(worst, *errors)
+    if worst > tolerance:
+        raise ValueError(f"Plan record audit failed: {worst}")
+    return {"passed": True, "records": count, "max_residual_kwh": float(worst)}
+
+
 def audit_adjustments(records, frame, battery, dt, tolerance=2e-5):
-    """Saved adjustment horizons must be feasible and must match the executed contracts."""
+    """Saved adjustment horizons must be feasible and must match the executed contracts.
+
+    A record covers the remaining committed slots of the day (lead_days 1, slots
+    release..143) and, when saved, the full advisory day (lead_days 2, slots 0..143).
+    Physics is checked over the concatenated horizon; advisory rows must carry no plan,
+    no band coverage and must not appear in the executed trajectory; only committed
+    rows whose version survived are compared with the executed contract.
+    """
     if not np.isfinite(records.select_dtypes(include="number")).all().all():
         raise ValueError("Non-finite adjustment record")
-    worst = 0.0; count = 0
+    full_horizon = "lead_days" in records
+    if not full_horizon:
+        records = records.assign(lead_days=1, is_committed=True, advisory_covered_slots=0)
+    worst = 0.0; count = 0; advisory = 0
     for (date, release), part in records.groupby(["date", "release_slot"], sort=True):
-        part = part.sort_values("slot").reset_index(drop=True); count += 1
-        if not np.array_equal(part.slot, np.arange(release, 144)):
+        part = part.sort_values(["lead_days", "slot"]).reset_index(drop=True); count += 1
+        today = part[part.lead_days == 1]; tomorrow = part[part.lead_days == 2]
+        if not np.array_equal(today.slot, np.arange(release, 144)):
             raise ValueError("Adjustment horizon must cover the remaining slots of the day")
+        if len(tomorrow) and not np.array_equal(tomorrow.slot, np.arange(144)):
+            raise ValueError("Advisory horizon must cover the whole next day")
+        if not today.is_committed.astype(bool).all() or tomorrow.is_committed.astype(bool).any():
+            raise ValueError("Commitment flags inconsistent with the horizon")
+        covered_slots = part.advisory_covered_slots.unique()
+        if len(covered_slots) != 1 or covered_slots[0] not in (0, release):
+            raise ValueError("Advisory coverage must be 0 or the release slot")
         E = part.soc_start_kwh.to_numpy(); F = part.soc_end_kwh.to_numpy()
         c = part.charge_kwh.to_numpy(); d = part.discharge_kwh.to_numpy()
         q = part.contract_kwh.to_numpy(); q0 = part.plan_kwh.to_numpy(); w = part.covered_kwh.to_numpy()
@@ -159,16 +214,28 @@ def audit_adjustments(records, frame, battery, dt, tolerance=2e-5):
                   max(0, c.max()-battery.max_charge_power_kw*dt, d.max()-battery.max_discharge_power_kw*dt),
                   max(0, -min(c.min(), d.min(), q.min(), w.min())), np.max(np.minimum(c, d)),
                   max(0, np.max(w-np.maximum(high-low, 0))), max(0, -np.min(q+d-c-low-w))]
+        if len(tomorrow):
+            advisory += 1
+            errors.append(float(np.max(np.abs(tomorrow.plan_kwh.to_numpy()))))
+            errors.append(float(np.max(np.abs(tomorrow.covered_kwh.to_numpy()))))
+            if np.max(np.abs(tomorrow.net_high_kwh.to_numpy()-tomorrow.net_low_kwh.to_numpy())) > tolerance:
+                raise ValueError("Advisory slots must use a single planning profile, not a band")
         realized = frame[(frame.date == date) & (frame.slot >= release)]
         if len(realized) != 144-release:
             raise ValueError("Missing execution slots")
+        m = len(today)
         errors.append(abs(E[0]-realized.soc_start_kwh.iloc[0]))
-        errors.append(np.max(abs(q0-realized.planned_grid_kwh.to_numpy())))
+        errors.append(np.max(abs(q0[:m]-realized.planned_grid_kwh.to_numpy())))
         # Later releases may overwrite; the version column tells which contract survived.
         kept = realized.contract_version.to_numpy() == release
         if kept.any():
-            errors.append(np.max(abs(q[kept]-realized.adjusted_grid_kwh.to_numpy()[kept])))
+            errors.append(np.max(abs(q[:m][kept]-realized.adjusted_grid_kwh.to_numpy()[kept])))
         worst = max(worst, *errors)
     if worst > tolerance:
         raise ValueError(f"Adjustment record audit failed: {worst}")
-    return {"passed": True, "records": count, "max_residual_kwh": float(worst)}
+    # Full-horizon archives save the advisory day for every release; a record set that lost
+    # its lead-2 rows must fail instead of passing with an unchecked advisory segment.
+    if full_horizon and advisory != count:
+        raise ValueError(f"Advisory day missing on {count-advisory} of {count} adjustment records")
+    return {"passed": True, "records": count, "records_with_advisory_day": advisory, "full_horizon": bool(full_horizon),
+            "max_residual_kwh": float(worst)}

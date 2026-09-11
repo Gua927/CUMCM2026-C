@@ -1,9 +1,12 @@
 PYTHON ?= /root/miniconda3/bin/python
 
-.PHONY: inspect prepare-results solve-q1 check-q1 solve-q2 check-q2 solve-q3 check-q3 solve-q4 check-q4 figures test paper ai-details template-check check clean
+.PHONY: inspect prepare-results solve-q1 check-q1 solve-q2 check-q2 solve-q3 check-q3 solve-q4 check-q4 review-compare figures test paper ai-details template-check check clean
 
 figures:
 	$(PYTHON) code/scripts/render_publication.py
+
+review-compare:
+	$(PYTHON) code/scripts/review_1st_compare.py
 
 solve-q2:
 	$(PYTHON) code/scripts/solve_problem2.py $(Q2_ARGS)

@@ -23,7 +23,8 @@ def write_report(folder, comparison, errors, check, ci, references, config, audi
 
 - 4-2（第二问信息集，固定合同）：现金费用 {m42.cost_yuan:,.2f} 元（计划 {m42.planned_cost_yuan:,.2f}，紧急 {m42.emergency_cost_yuan:,.2f}），紧急购电 {m42.emergency_grid_kwh:,.1f} kWh。固定电价下第二问主策略为 {references['q2_fixed_price_cost']:,.2f} 元。
 - 4-3（第三问信息集，三时点有偿调整）：现金费用 {m43.cost_yuan:,.2f} 元（计划 {m43.planned_cost_yuan:,.2f}，调整 {m43.adjustment_cost_yuan:+,.2f}，紧急 {m43.emergency_cost_yuan:,.2f}），紧急购电 {m43.emergency_grid_kwh:,.1f} kWh。固定电价下第三问主策略为 {references['q3_fixed_price_cost']:,.2f} 元。
-- 4-3 相对 4-2 节省 {m42.cost_yuan-m43.cost_yuan:,.2f} 元；忽略价格波动（按附件1轮廓规划）分别多花 {c.loc['q42_fixed_profile','cost_yuan']-m42.cost_yuan:,.2f}（4-2）与 {c.loc['q43_fixed_profile','cost_yuan']-m43.cost_yuan:,.2f}（4-3）元；当日价格完全已知的上界分别为 {c.loc['q42_perfect_price','cost_yuan']:,.2f} 与 {c.loc['q43_perfect_price','cost_yuan']:,.2f} 元。
+- 4-3 相对 4-2 节省 {m42.cost_yuan-m43.cost_yuan:,.2f} 元，其中 0:00 融合外部预报（仅计划）{m42.cost_yuan-c.loc['q43_plan_only','cost_yuan']:,.2f} 元、日内有偿调整 {c.loc['q43_plan_only','cost_yuan']-m43.cost_yuan:,.2f} 元；忽略价格波动（按附件1轮廓规划）分别多花 {c.loc['q42_fixed_profile','cost_yuan']-m42.cost_yuan:,.2f}（4-2）与 {c.loc['q43_fixed_profile','cost_yuan']-m43.cost_yuan:,.2f}（4-3）元；当日价格预知的启发式对照（信息放宽，非最优费用界限）分别为 {c.loc['q42_perfect_price','cost_yuan']:,.2f} 与 {c.loc['q43_perfect_price','cost_yuan']:,.2f} 元。
+- 4-3 冻结旧版信息链对照：{c.loc['q43_legacy_chain','cost_yuan']:,.2f} 元（主策略相对其差 {c.loc['q43_legacy_chain','cost_yuan']-m43.cost_yuan:+,.2f} 元）。
 
 ## 价格模型
 

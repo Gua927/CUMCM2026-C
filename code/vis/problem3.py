@@ -101,6 +101,9 @@ def q3_information_value(comparison, paired, adjustments, diagnostics, folder):
     ax.set_ylim(min(0, ci.min())*1.15, max(alone.max(), ci.max())*1.45); ax.set_ylabel("全年节费 (万元)"); clean_axis(ax, grid=None)
     panel(ax, "b", "各时点的价值与边际价值"); inside(ax.legend(loc="upper left", fontsize=8, handlelength=1.4))
     # c: adjustment footprint by release and target hour
+    # Only the committed remaining slots of the day carry contract changes; advisory rows (lead_days 2) are planning variables.
+    if "lead_days" in adjustments:
+        adjustments = adjustments[adjustments.lead_days == 1]
     ax = fig.add_subplot(grid[1, 0]); frame = adjustments.assign(hour=adjustments.slot//6, delta=adjustments.contract_kwh-adjustments.plan_kwh)
     n_days = frame.date.nunique(); hours = np.arange(6, 24); up_base = np.zeros(len(hours)); down_base = np.zeros(len(hours))
     shades = {36: tint(C["grid"], .55), 72: tint(C["grid"], .25), 108: C["grid"]}

@@ -12,7 +12,10 @@ import numpy as np
 from scipy.optimize import linprog
 from scipy.sparse import lil_matrix
 
-SOLVER_AUDIT={"solves":0,"max_primal_dual_gap_yuan":0.0,"max_stationarity":0.0}
+SOLVER_AUDIT={"solves":0,"max_primal_dual_gap_yuan":0.0,"max_stationarity":0.0,"failures":0}
+# `failures` counts solves rejected by status, residual or dual certificate. Every rejection
+# raises and aborts the run, so a complete archive necessarily reports 0; the counter makes
+# that a measurement of the completed run rather than a constant.
 
 
 @dataclass
@@ -46,9 +49,11 @@ def checked_lp(obj, eq, rhs, bounds):
                      options={"primal_feasibility_tolerance": 1e-8,
                               "dual_feasibility_tolerance": 1e-8})
     if result.status != 0 or not result.success:
+        SOLVER_AUDIT["failures"]+=1
         raise RuntimeError(f"Q2 LP failed: {result.status}: {result.message}")
     residual = float(np.max(np.abs(eq@result.x-rhs)))
     if residual > 2e-5:
+        SOLVER_AUDIT["failures"]+=1
         raise RuntimeError(f"Q2 LP residual {residual}")
     lo=np.array([0 if x[0] is None else x[0] for x in bounds],float)
     hi=np.array([np.inf if x[1] is None else x[1] for x in bounds],float)
@@ -56,7 +61,9 @@ def checked_lp(obj, eq, rhs, bounds):
     dual=float(rhs@result.eqlin.marginals+lo@result.lower.marginals+hi[finite]@result.upper.marginals[finite])
     gap=abs(float(result.fun)-dual)
     stationarity=float(np.max(abs(obj-eq.T@result.eqlin.marginals-result.lower.marginals-result.upper.marginals)))
-    if gap>2e-5 or stationarity>2e-5:raise RuntimeError("Q2 LP dual certificate failed")
+    if gap>2e-5 or stationarity>2e-5:
+        SOLVER_AUDIT["failures"]+=1
+        raise RuntimeError("Q2 LP dual certificate failed")
     SOLVER_AUDIT["solves"]+=1
     SOLVER_AUDIT["max_primal_dual_gap_yuan"]=max(SOLVER_AUDIT["max_primal_dual_gap_yuan"],gap)
     SOLVER_AUDIT["max_stationarity"]=max(SOLVER_AUDIT["max_stationarity"],stationarity)

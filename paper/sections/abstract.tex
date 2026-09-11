@@ -8,9 +8,9 @@
 
 \textbf{针对问题二，}以同一历史信息生成两日预测，按提前期校准成熟残差，建立48小时风险规划，仅提交当天合同。经一月选型，二月至十二月现金费用为\QTwoTotalCost 万元，较同信息无储能节费\QTwoSaving\%。实际SOC跨日连续，另以24小时、72小时及远端残值对照检验边界处理，区分资源配置改善与现金节费。
 
-\textbf{针对问题三，}将附件三整点预报按对齐检验锚定到10分钟时段并与本地预测等权融合，在$6{:}00$、$12{:}00$、$18{:}00$以实际储能状态和$0{:}00$计划为基准，求解上调$1.5$倍、取消退回$50\%$的有偿调整线性规划，调整带$[0.7,0.9]$由费用比例导出。二月至十二月现金费用为\QThreeTotalCost 万元，较仅$0{:}00$计划节费\QThreeSavingPlanOnlyPercent\%，紧急购电由\QThreePlanOnlyEmergency\ kWh降至\QThreeEmergencyEnergy\ kWh。信息价值分解表明节省主要来自合同调整权限与状态反馈，三个时点边际收益均为正且$18{:}00$最大，据此回答是否需要引入其他时刻预报。
+\textbf{针对问题三，}将附件三整点预报按对齐检验锚定到10分钟时段并与本地预测等权融合，在$6{:}00$、$12{:}00$、$18{:}00$以实际储能状态和$0{:}00$计划为基准，求解上调$1.5$倍、取消退回$50\%$的有偿调整线性规划，调整带端点$[0.7,0.9]$由费用比例导出，最新发布版本的次日覆盖部分进入次日辅助规划，校准残差与日内修正流程同构。二月至十二月现金费用为\QThreeTotalCost 万元，较仅$0{:}00$计划节费\QThreeSavingPlanOnlyPercent\%，紧急购电由\QThreePlanOnlyEmergency\ kWh降至\QThreeEmergencyEnergy\ kWh。信息价值分解表明节省主要来自合同调整权限与状态反馈，三个时点边际收益均为正且$18{:}00$最大，据此回答是否需要引入其他时刻预报。
 
-\textbf{针对问题四，}将未来实时电价视为未知量，以最近同星期日价格轮廓与净负荷回归的等权融合作因果日前预测，规划用预测价、账单按交付时段实时价结算，分别重算前两问。固定合同策略费用为\QFourTwoTotalCost 万元，有偿调整策略为\QFourThreeTotalCost 万元；相同决策仅因实时价结算即多付约$5.4\%$，价格预测收回其中\QFourTwoFixedPercent\%至\QFourThreeFixedPercent\%，而合同调整机制在波动电价下仍节省\QFourThreeVsTwoPercent\%。
+\textbf{针对问题四，}将未来实时电价视为未知量，以最近同星期日价格轮廓与净负荷回归的等权融合作因果日前预测，规划用预测价、账单按交付时段实时价结算，分别重算前两问。固定合同策略费用为\QFourTwoTotalCost 万元，有偿调整策略为\QFourThreeTotalCost 万元；相同决策仅因实时价结算即多付约$5.4\%$，价格预测收回其中\QFourTwoFixedPercent\%至\QFourThreeFixedPercent\%；有偿调整策略相对固定合同再节省\QFourThreeVsTwoPercent\%，其中$0{:}00$融合外部预报贡献\QFourValueExternalPlanPercent\%、日内有偿调整贡献\QFourValueAdjustPercent\%。
 
 
 \keywords{微网调度；储能配置；非对称成本；滚动优化；信息约束}

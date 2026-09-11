@@ -89,6 +89,10 @@
  \label{fig:q3-days}
 \end{figure}
 
+表~\ref{tab:q3-horizon}按发布时刻与提前期分段给出调整时刻风险轮廓的实际覆盖率与光伏点预报误差，并与冻结旧版信息链对照：同构残差使当日剩余段的覆盖率贴近名义值；次日覆盖段的光伏误差高于本地两日预测，但$0.8$分位数轮廓的覆盖率仍接近名义值。
+
+\input{../output/tables/q3_horizon.tex}
+
 \section{第四问指定日期结果}
 \label{app:q4-dates}
 
@@ -162,3 +166,6 @@
 \lstinputlisting[language=Python,caption={问题四归档独立校验入口}]{../code/scripts/validate_problem4.py}
 \lstinputlisting[language=Python,caption={问题四价格因果性、结算与兼容性测试}]{../code/tests/test_problem4.py}
 \lstinputlisting[language=Python,caption={问题三图形}]{../code/vis/problem3.py}
+\lstinputlisting[language=Python,caption={问题三信息链测试：发布覆盖、成熟残差、同构偏差修正、完整辅助段}]{../code/tests/test_problem3_information.py}
+\lstinputlisting[language=Python,caption={第一轮审计小型反例测试（价格加权分位数、调整期权、带内价值、价格预知对照）}]{../code/tests/test_review_counterexamples.py}
+\lstinputlisting[language=Python,caption={信息链同参对照汇总（只读归档）}]{../code/scripts/review_1st_compare.py}

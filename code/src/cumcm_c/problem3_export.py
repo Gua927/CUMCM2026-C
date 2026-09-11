@@ -141,7 +141,16 @@ def validate_workbook(target, frame, tolerance=2e-5):
         wb.close(); original.close()
 
 
-def tex_tables(frame, comparison, emergencies, dates, target, diagnostics, ci, check, descriptions):
+LABELS = {"adjust_all": "主策略：三时点调整（新信息链）", "legacy_chain": "冻结旧版信息链", "cross_day_only": "仅接入跨日新预报",
+          "matched_bias_only": "仅同构残差校准", "plan_only": "仅0:00计划", "adjust_6": "仅6:00", "adjust_12": "仅12:00", "adjust_18": "仅18:00",
+          "adjust_6_12": "6:00+12:00", "adjust_6_18": "6:00+18:00", "adjust_12_18": "12:00+18:00",
+          "stale_forecast": "三时点调整，预报冻结", "external_only": "三时点调整，仅附件3", "own_forecast_plan_only": "第二问策略（无附件3）",
+          "own_forecast_adjust_all": "无附件3，三时点调整", "penalty_rule": "主策略，不退款口径", "symmetric_rule": "主策略，单一分位数"}
+SEGMENTS = {"today_remaining": "当日剩余", "tomorrow_in_range": "次日：版本覆盖范围内", "tomorrow_beyond_range": "次日：覆盖范围外"}
+
+
+def tex_tables(frame, comparison, emergencies, dates, target, diagnostics, ci, check, descriptions,
+               horizon=None, horizon_legacy=None, certificates=None, audits=None, alignment=None):
     def write(name, lines):
         (target/name).write_text("\n".join(lines)+"\n", encoding="utf-8")
     daily = daily_summary(frame).set_index("date")
@@ -180,18 +189,41 @@ def tex_tables(frame, comparison, emergencies, dates, target, diagnostics, ci, c
         lines.append(" & ".join(items)+r" \\")
     lines += [r"\midrule", " & ".join(f"合计 & {g.emergency_grid_kwh.sum():.3f}" for g in groups)+r" \\", r"\bottomrule\end{longtable}\endgroup"]
     write("q3_emergency.tex", lines)
-    labels = {"adjust_all": "主策略：三时点调整", "plan_only": "仅0:00计划", "adjust_6": "仅6:00", "adjust_12": "仅12:00", "adjust_18": "仅18:00",
-              "adjust_6_12": "6:00+12:00", "adjust_6_18": "6:00+18:00", "adjust_12_18": "12:00+18:00",
-              "stale_forecast": "三时点调整，预报冻结", "external_only": "三时点调整，仅附件3", "own_forecast_plan_only": "第二问策略（无附件3）",
-              "own_forecast_adjust_all": "无附件3，三时点调整", "penalty_rule": "主策略，不退款口径", "symmetric_rule": "主策略，单一分位数"}
+    labels = LABELS
+    chain = [s for s in ("adjust_all", "legacy_chain", "cross_day_only", "matched_bias_only") if s in set(comparison.strategy)]
     lines = [r"\begin{table}[htbp]\centering\small", r"\setlength{\tabcolsep}{4pt}",
-             r"\caption{二月至十二月各策略的实际费用与调整量（万元、kWh）；除结算口径行外均按退款口径结算}",
+             r"\caption{二月至十二月各策略的实际费用与调整量（万元、kWh）；除结算口径行外均按退款口径结算，除信息链对照外均采用新信息链}",
              r"\label{tab:q3-comparison}\begin{tabular}{lrrrrrrr}\toprule",
              r"策略 & 计划费 & 调整费 & 紧急费 & 总费用 & 修正费用 & 上调/下调量 & 紧急量 \\\midrule"]
     for row in comparison.itertuples():
+        if row.strategy in chain[1:]:
+            continue
         lines.append(f"{labels[row.strategy]} & {row.planned_cost_yuan/1e4:.3f} & {row.adjustment_cost_yuan/1e4:+.3f} & {row.emergency_cost_yuan/1e4:.3f} & "
                      f"{row.cost_yuan/1e4:.3f} & {row.value_adjusted_cost_yuan/1e4:.3f} & {row.adjust_up_kwh/1e3:.1f}/{row.adjust_down_kwh/1e3:.1f}k & {row.emergency_grid_kwh/1e3:.1f}k"+r" \\")
     lines += [r"\bottomrule\end{tabular}\end{table}"]; write("q3_comparison.tex", lines)
+    if len(chain) == 4:
+        c0 = comparison.set_index("strategy")
+        lines = [r"\begin{table}[htbp]\centering\footnotesize", r"\setlength{\tabcolsep}{3pt}",
+                 r"\caption{信息链修复的四组同参对照（二月至十二月；相同输入、初态、控制器与结算；期末电量均为8837 kWh）：现金费用及分解（万元）、紧急购电（kWh）、日紧急费用CVaR95（元）与主策略相对该变体日均节省的七日块配对95\%区间（元）}",
+                 r"\label{tab:q3-information-chain}\begin{tabular}{lccrrrrrrl}\toprule",
+                 r"变体 & 跨日新预报 & 同构残差 & 总费用 & 计划费 & 调整费 & 紧急费 & 紧急量 & CVaR95 & 日均节省区间 \\\midrule"]
+        for s in chain:
+            r = c0.loc[s]; flag = lambda v: "是" if bool(v) else "否"
+            interval = "--" if s == "adjust_all" or s not in ci else f"[{ci[s]['ci95_mean_daily_yuan'][0]:.1f}, {ci[s]['ci95_mean_daily_yuan'][1]:.1f}]"
+            lines.append(f"{labels[s]} & {flag(r.cross_day_release)} & {flag(r.matched_bias)} & {r.cost_yuan/1e4:.3f} & {r.planned_cost_yuan/1e4:.3f} & {r.adjustment_cost_yuan/1e4:+.3f} & "
+                         f"{r.emergency_cost_yuan/1e4:.3f} & {r.emergency_grid_kwh/1e3:.1f}k & {r.emergency_cost_cvar95_yuan:.0f} & {interval}"+r" \\")
+        lines += [r"\bottomrule\end{tabular}\end{table}"]; write("q3_information_chain.tex", lines)
+    if horizon is not None and horizon_legacy is not None:
+        lines = [r"\begin{table}[htbp]\centering\small", r"\setlength{\tabcolsep}{4pt}",
+                 r"\caption{调整时刻风险轮廓按发布时刻与提前期分段的实际覆盖率（净负荷不超过轮廓的时段比例，\%）与光伏点预报MAE（kW）：新信息链与冻结旧版在同一分段上对照；次日按该发布版本的24小时覆盖范围分段（新信息链只在范围内使用该版本），名义覆盖率为0.7/0.9（当日）与0.8（次日）}",
+                 r"\label{tab:q3-horizon}\begin{tabular}{llrrrrrr}\toprule",
+                 r"发布 & 分段 & 时段数 & 新：0.7/0.8覆盖 & 新：0.9覆盖 & 新：光伏MAE & 旧：0.7/0.8覆盖 & 旧：光伏MAE \\\midrule"]
+        h1 = horizon.set_index(["release_slot", "segment"]); h0 = horizon_legacy.set_index(["release_slot", "segment"])
+        for (release, segment), r in h1.iterrows():
+            old = h0.loc[(release, segment)]
+            high = f"{r.high_coverage*100:.1f}" if segment == "today_remaining" else "--"
+            lines.append(f"{r.release} & {SEGMENTS[segment]} & {int(r.rows)} & {r.low_coverage*100:.1f} & {high} & {r.pv_mae_kw:.1f} & {old.low_coverage*100:.1f} & {old.pv_mae_kw:.1f}"+r" \\")
+        lines += [r"\bottomrule\end{tabular}\end{table}"]; write("q3_horizon.tex", lines)
     lines = [r"\begin{table}[htbp]\centering\small", r"\caption{光伏预报平均绝对误差（kW，二月至十二月）：发布后24小时窗口及当日剩余时段}",
              r"\label{tab:q3-forecast}\begin{tabular}{lrrrrr}\toprule",
              r"发布时刻 & 附件3 & 本地趋势 & 融合 & 当日剩余：0:00版本 & 当日剩余：最新版本 \\\midrule"]
@@ -244,14 +276,59 @@ def tex_tables(frame, comparison, emergencies, dates, target, diagnostics, ci, c
         if release != "0:00":
             numbers[f"QThreeStaleMAE{key}"] = f"{d.loc[release,'stale_same_day_mae_kw']:.1f}"
             numbers[f"QThreeFreshMAE{key}"] = f"{d.loc[release,'fresh_same_day_mae_kw']:.1f}"
+            if "next_day_local_mae_kw" in d:
+                numbers[f"QThreeNextLocal{key}"] = f"{d.loc[release,'next_day_local_mae_kw']:.1f}"
+                numbers[f"QThreeNextAware{key}"] = f"{d.loc[release,'next_day_release_aware_mae_kw']:.1f}"
     suffix = {"plan_only": "PlanOnly", "stale_forecast": "Stale", "adjust_12_18": "DropSix", "adjust_6_18": "DropTwelve",
-              "adjust_6_12": "DropEighteen", "own_forecast_plan_only": "QTwo", "external_only": "ExternalOnly", "penalty_rule": "Penalty"}
+              "adjust_6_12": "DropEighteen", "own_forecast_plan_only": "QTwo", "external_only": "ExternalOnly", "penalty_rule": "Penalty",
+              "symmetric_rule": "Symmetric", "legacy_chain": "Legacy", "cross_day_only": "CrossDay", "matched_bias_only": "MatchedBias"}
     for strategy, values in ci.items():
         if strategy in suffix:
             numbers[f"QThreeCI{suffix[strategy]}Low"] = f"{values['ci95_mean_daily_yuan'][0]:.2f}"
             numbers[f"QThreeCI{suffix[strategy]}High"] = f"{values['ci95_mean_daily_yuan'][1]:.2f}"
             numbers[f"QThreeCI{suffix[strategy]}Mean"] = f"{values['mean_daily_saving_yuan']:.2f}"
     k = check.set_index("variant")
-    for variant, key in (("band_derived", "Band"), ("symmetric_plan_quantile", "Symmetric"), ("band_wide", "Wide"), ("plan_only", "PlanOnly")):
-        numbers[f"QThreeCheck{key}"] = f"{k.loc[variant,'check_adjusted_cost_yuan']:.2f}"
+    for variant, key in (("band_derived", "Band"), ("symmetric_plan_quantile", "Symmetric"), ("band_wide", "Wide"), ("plan_only", "PlanOnly"), ("legacy_chain", "Legacy")):
+        if variant in k.index:
+            numbers[f"QThreeCheck{key}"] = f"{k.loc[variant,'check_adjusted_cost_yuan']:.2f}"
+    for strategy, key in (("legacy_chain", "Legacy"), ("cross_day_only", "CrossDay"), ("matched_bias_only", "MatchedBias")):
+        if strategy in c.index:
+            r = c.loc[strategy]
+            numbers[f"QThree{key}Cost"] = f"{r.cost_yuan:.2f}"; numbers[f"QThree{key}Diff"] = f"{diff(strategy, 'adjust_all'):.2f}"
+            numbers[f"QThree{key}PlanDiff"] = f"{diff(strategy, 'adjust_all', 'planned_cost_yuan'):.2f}"
+            numbers[f"QThree{key}AdjustDiff"] = f"{diff(strategy, 'adjust_all', 'adjustment_cost_yuan'):.2f}"
+            numbers[f"QThree{key}EmergencyDiff"] = f"{diff(strategy, 'adjust_all', 'emergency_cost_yuan'):.2f}"
+            numbers[f"QThree{key}Emergency"] = f"{r.emergency_grid_kwh:.3f}"; numbers[f"QThree{key}Cvar"] = f"{r.emergency_cost_cvar95_yuan:.2f}"
+            numbers[f"QThree{key}Terminal"] = f"{r.terminal_kwh:.3f}"; numbers[f"QThree{key}AdjustedDiff"] = f"{diff(strategy, 'adjust_all', 'value_adjusted_cost_yuan'):.2f}"
+            numbers[f"QThree{key}Up"] = f"{r.adjust_up_kwh:.3f}"; numbers[f"QThree{key}Down"] = f"{r.adjust_down_kwh:.3f}"
+    if certificates is not None:
+        # LP counts: the annual trajectories of the compared strategies, and the whole run including the January check.
+        numbers["QThreeLPSolves"] = str(int(comparison.lp_solves.sum())) if "lp_solves" in comparison else str(int(certificates["solves"]))
+        numbers["QThreeLPSolvesTotal"] = str(int(certificates["solves"]))
+        numbers["QThreeLPSolvesJanuary"] = str(int(certificates["solves"])-int(comparison.lp_solves.sum())) if "lp_solves" in comparison else "0"
+        numbers["QThreeSolverFailures"] = str(int(certificates.get("failures", 0)))
+        numbers["QThreeDualGap"] = f"{certificates['max_primal_dual_gap_yuan']:.1e}".replace("e-", r"\times10^{-").replace("e+", r"\times10^{")+"}"
+    if audits is not None and "issued_adjustments" in audits:
+        numbers["QThreeAdjustmentRecords"] = str(int(audits["issued_adjustments"]["records"]))
+        numbers["QThreeStrategyCount"] = str(len(comparison))
+    if alignment is not None:
+        a = alignment.set_index(["release_slot", "window"])
+        for window, key in (("all_days", ""), ("evaluation", "Eval")):
+            if (0, window) in a.index:
+                r = a.loc[(0, window)]
+                numbers.update({f"QThreeAlign{key}Start": f"{r.start_slot_mae_kw:.0f}", f"QThreeAlign{key}End": f"{r.end_slot_mae_kw:.0f}",
+                                f"QThreeAlign{key}PrevMean": f"{r.previous_hour_mean_mae_kw:.0f}", f"QThreeAlign{key}NextMean": f"{r.next_hour_mean_mae_kw:.0f}",
+                                f"QThreeAlign{key}Days": str(int(r.days))})
+    if "cross_day_only" in c.index and "legacy_chain" in c.index:
+        numbers["QThreeCrossDayVsLegacy"] = f"{diff('cross_day_only', 'legacy_chain'):.2f}"
+    for table, prefix in ((horizon, "QThreeCov"), (horizon_legacy, "QThreeLegacyCov")):
+        if table is None:
+            continue
+        h = table.set_index(["release_slot", "segment"])
+        for release, key in ((36, "Six"), (72, "Twelve"), (108, "Eighteen")):
+            for segment, seg in (("today_remaining", "Today"), ("tomorrow_in_range", "Covered"), ("tomorrow_beyond_range", "Uncovered")):
+                if (release, segment) in h.index:
+                    numbers[f"{prefix}{key}{seg}Low"] = f"{h.loc[(release, segment), 'low_coverage']*100:.1f}"
+                    numbers[f"{prefix}{key}{seg}High"] = f"{h.loc[(release, segment), 'high_coverage']*100:.1f}"
+                    numbers[f"{prefix.replace('Cov', 'PV')}{key}{seg}"] = f"{h.loc[(release, segment), 'pv_mae_kw']:.1f}"
     write("q3_numbers.tex", [f"\\providecommand{{\\{name}}}{{{value}}}" for name, value in numbers.items()])

@@ -195,9 +195,10 @@ def _emergency_table(emergencies, dates, label, caption):
     return lines
 
 
-LABELS = {"q42_forecast": "4-2主策略：价格预测", "q42_fixed_profile": "4-2：按附件1价格轮廓规划", "q42_perfect_price": "4-2：当日价格已知",
-          "q43_forecast": "4-3主策略：价格预测+日内修正", "q43_no_intraday": "4-3：不作日内价格修正", "q43_fixed_profile": "4-3：按附件1价格轮廓规划",
-          "q43_perfect_price": "4-3：当日价格已知", "q43_plan_only": "4-3：仅0:00计划"}
+LABELS = {"q42_forecast": "4-2主策略：价格预测", "q42_fixed_profile": "4-2：按附件1价格轮廓规划", "q42_perfect_price": "4-2：当日价格预知（启发式对照）",
+          "q43_forecast": "4-3主策略：价格预测+日内修正", "q43_legacy_chain": "4-3：冻结旧版信息链", "q43_cross_day_only": "4-3：仅接入跨日新预报",
+          "q43_matched_bias_only": "4-3：仅同构残差校准", "q43_no_intraday": "4-3：不作日内价格修正",
+          "q43_fixed_profile": "4-3：按附件1价格轮廓规划", "q43_perfect_price": "4-3：当日价格预知（启发式对照）", "q43_plan_only": "4-3：仅0:00计划"}
 
 
 def tex_tables(frames, comparison, dates, target, price_table, errors, ci, check, references):
@@ -267,14 +268,36 @@ def tex_tables(frames, comparison, dates, target, price_table, errors, ci, check
                "QFourPriceDailyMax": f"{price_table['realized_mean'].max():.3f}", "QFourPriceWeekendMean": f"{price_table.loc[price_table.low_group,'realized_mean'].mean():.3f}",
                "QFourPriceOtherMean": f"{price_table.loc[~price_table.low_group,'realized_mean'].mean():.3f}",
                "QFourDeficitPriceRatio": f"{references['deficit_price_ratio']:.3f}", "QFourPriceNetCorr": f"{references['price_net_corr']:.3f}",
-               "QFourPriceRSquared": f"{references['price_net_r2']:.3f}"}
+               "QFourPriceRSquared": f"{references['price_net_r2']:.3f}",
+               # R10: the 4-2 -> 4-3 difference splits into the 0:00 external-forecast fusion (no adjustment) and the paid intraday adjustment.
+               "QFourValueExternalPlan": f"{diff('q42_forecast','q43_plan_only'):.2f}", "QFourValueAdjust": f"{diff('q43_plan_only','q43_forecast'):.2f}",
+               "QFourValueExternalPlanPercent": f"{diff('q42_forecast','q43_plan_only')/m42.cost_yuan*100:.2f}",
+               "QFourValueAdjustPercent": f"{diff('q43_plan_only','q43_forecast')/m42.cost_yuan*100:.2f}",
+               "QFourThreePerfectEmergency": f"{c.loc['q43_perfect_price','emergency_grid_kwh']:.3f}",
+               "QFourTwoPerfectEmergency": f"{c.loc['q42_perfect_price','emergency_grid_kwh']:.3f}",
+               # Emergency-energy reductions quoted in prose: 4-2 -> 4-3 and plan_only -> 4-3 (the adjustment step).
+               "QFourEmergencyDropPercent": f"{(1-m43.emergency_grid_kwh/m42.emergency_grid_kwh)*100:.1f}",
+               "QFourAdjustEmergencyDropPercent": f"{(1-m43.emergency_grid_kwh/c.loc['q43_plan_only','emergency_grid_kwh'])*100:.1f}",
+               "QFourAdjustShareOfSaving": f"{diff('q43_plan_only','q43_forecast')/diff('q42_forecast','q43_forecast')*100:.1f}",
+               "QFourStrategyCount": str(len(comparison))}
+    for strategy, key in (("q43_legacy_chain", "Legacy"), ("q43_cross_day_only", "CrossDay"), ("q43_matched_bias_only", "MatchedBias")):
+        if strategy in c.index:
+            r = c.loc[strategy]
+            numbers.update({f"QFourThree{key}Cost": f"{r.cost_yuan:.2f}", f"QFourThree{key}Diff": f"{diff(strategy,'q43_forecast'):.2f}",
+                            f"QFourThree{key}Emergency": f"{r.emergency_grid_kwh:.3f}", f"QFourThree{key}Cvar": f"{r.emergency_cost_cvar95_yuan:.2f}",
+                            f"QFourThree{key}PlanDiff": f"{diff(strategy,'q43_forecast','planned_cost_yuan'):.2f}",
+                            f"QFourThree{key}AdjustDiff": f"{diff(strategy,'q43_forecast','adjustment_cost_yuan'):.2f}",
+                            f"QFourThree{key}EmergencyDiff": f"{diff(strategy,'q43_forecast','emergency_cost_yuan'):.2f}"})
+    if "q43_cross_day_only" in c.index and "q43_legacy_chain" in c.index:
+        numbers["QFourThreeCrossDayVsLegacy"] = f"{diff('q43_cross_day_only','q43_legacy_chain'):.2f}"
     for method, key in (("fixed", "Fixed"), ("lag7", "LagSeven"), ("weekday", "Weekday"), ("regression", "Regression"), ("combined", "Combined")):
         numbers[f"QFourMAE{key}"] = f"{err.loc[method,'lead1_mae']:.4f}"; numbers[f"QFourMAE{key}Two"] = f"{err.loc[method,'lead2_mae']:.4f}"
         numbers[f"QFourCheck{key}"] = f"{chk.loc[method,'lead1_mae']:.4f}"
     for t, key in ((36, "Six"), (72, "Twelve"), (108, "Eighteen")):
         numbers[f"QFourRemaining{key}"] = f"{references['intraday'][f'remaining_{t}']:.4f}"; numbers[f"QFourStale{key}"] = f"{references['intraday'][f'stale_{t}']:.4f}"
     suffix = {"q42_fixed_profile": "TwoFixed", "q42_perfect_price": "TwoPerfect", "q43_no_intraday": "ThreeNoIntraday", "q43_fixed_profile": "ThreeFixed",
-              "q43_perfect_price": "ThreePerfect", "q43_plan_only": "ThreePlanOnly", "q42_forecast": "ThreeVsTwo"}
+              "q43_perfect_price": "ThreePerfect", "q43_plan_only": "ThreePlanOnly", "q42_forecast": "ThreeVsTwo", "q43_legacy_chain": "ThreeLegacy",
+              "q43_cross_day_only": "ThreeCrossDay", "q43_matched_bias_only": "ThreeMatchedBias"}
     for strategy, values in ci.items():
         if strategy in suffix:
             numbers[f"QFourCI{suffix[strategy]}Low"] = f"{values['ci95_mean_daily_yuan'][0]:.2f}"
