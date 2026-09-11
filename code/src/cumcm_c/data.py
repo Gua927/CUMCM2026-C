@@ -137,3 +137,28 @@ def problem2_daily(convention="daily_cyclic_start"):
             raise ValueError(convention)
         arrays.append(values/6)
     return dates,np.stack(arrays,axis=-1)
+
+
+def problem3_forecasts():
+    """Return (dates, issue_slots, hourly[day, issue, hour] kW) from attachment 3.
+
+    Row k of each date is the forecast released at issue_slots[k]*10 minutes; column
+    "预报h小时" is the PV power h hours after release. The alignment against attachment 2
+    (best fit: the 10-minute slot starting at release+h) is checked in problem3 tests.
+    """
+    frame = load_attachment3().copy()
+    frame["日期"] = pd.to_datetime(frame["日期"].ffill())
+    frame["预报时刻"] = frame["预报时刻"].map(lambda x: time_minutes(x) if not isinstance(x, str) else time_minutes(x.strip()))
+    dates = pd.DatetimeIndex(sorted(frame["日期"].unique()))
+    if not dates.equals(pd.date_range("2025-01-01", "2025-12-31")):
+        raise ValueError("Attachment 3 must cover every day of 2025")
+    issue_minutes = (0, 360, 720, 1080)
+    columns = [f"预报{h}小时" for h in range(1, 25)]
+    hourly = np.full((len(dates), len(issue_minutes), 24), np.nan)
+    for (date, minute), group in frame.groupby(["日期", "预报时刻"]):
+        if minute not in issue_minutes or len(group) != 1:
+            raise ValueError(f"Unexpected forecast release {date} {minute}")
+        hourly[dates.get_loc(date), issue_minutes.index(minute)] = group[columns].to_numpy(float)[0]
+    if not np.isfinite(hourly).all() or (hourly < 0).any():
+        raise ValueError("Missing or negative PV forecast")
+    return dates, tuple(m // 10 for m in issue_minutes), hourly

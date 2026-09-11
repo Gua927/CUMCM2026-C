@@ -28,6 +28,8 @@
   \texttt{runs/visuals/} & 独立视觉版本、样式规范、源码及数值保护哈希 \\
   \texttt{issued\_plans.csv} & 第二问各起报日48小时预测及辅助规划，位于对应数值归档 \\
   \texttt{boundary/} & 24/48/72小时及远端残值的完整对照轨迹，位于第二问归档 \\
+  \texttt{runs/problem3/} & 第三问一月规则检验、14种策略逐日轨迹、发布计划与调整记录、校验归档 \\
+  \texttt{issued\_adjustments.csv} & 第三问每次调整的剩余时段合同、风险带与参考储能轨迹，位于对应归档 \\
   \texttt{AI工具使用详情.pdf} & AI 工具使用过程、人工修改与核验记录 \\
   \bottomrule
 \end{longtable}
@@ -38,9 +40,59 @@
 
 第二问执行流程为：以同一信息截止点生成多提前期预测，仅按已成熟的预测误差校准风险轮廓；一月选型后冻结参数，每日求解48小时代理规划，仅提交前144时段合同，逐时执行并继承真实日末SOC；完成完整年度边界对照、局部敏感性及工作簿回读。运行\texttt{make solve-q2}重算，运行\texttt{make check-q2}核验实际及辅助轨迹，并因果重建保存的预测。
 
-【待补充：问题三、四的实际算法流程。】
+第三问执行流程为：读取附件3并按对齐检验将整点预报锚定到发布后对应起始时段，以发布前刚结束的实测时段作首锚点插值到10分钟；光伏点预报与本地趋势预测等权融合，负荷沿用第二问预测；每日0:00以同一48小时风险规划提交合同，在6:00、12:00、18:00按最新预报、实际SOC与0:00计划重解剩余时段的有偿调整LP，只提交当日剩余时段合同；逐时贪心执行并继承真实SOC；按最后有效合同与0:00计划一次结算。运行\texttt{make solve-q3}重算14种策略与一月检验，运行\texttt{make check-q3}独立核验轨迹、调整记录、因果重建与工作簿。
+
+【待补充：问题四的实际算法流程。】
 
 图形采用统一语义颜色、子图编号与最终印刷字号，配置见\path{code/config/visual_style.json}，详细约束及设计依据见\path{code/vis/STYLE_GUIDE.md}。图形组织参考Nature科学图形指南与NeurIPS历史格式说明\cite{nature-figure-guide,neurips-figure-style}，论文版式仍以本竞赛规范为准。执行\texttt{make figures}可从已核验归档重绘，不重复求解；流程核对数值文件与工作簿哈希不变，并单独保存视觉版本。矢量图以160 mm全宽插入，区间阶梯保留10分钟分辨率；配对重采样区间与确定性敏感性连线明确区分。
+
+\section{第一问参数与时间解释的补充分析}
+\label{app:q1-sensitivity}
+
+对容量、充放电功率及效率进行单因素重新优化，结果如图~\ref{fig:q1-sensitivity}。容量改变时同步保持 SOC 下限为额定容量的 $10\%$、上限为 $90\%$、初末电量为 $50\%$；因此，该组结果代表整套储能规格变化，不能解释为固定初始电量下的纯容量边际收益。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{q1_sensitivity.pdf}
+  \caption{设备参数对最优费用的影响。a--c分别改变容量、功率上限与单程效率；各点均重新优化，实心点及竖虚线对应主设定。纵轴为局部费用范围，连线不表示统计置信区间。}
+  \label{fig:q1-sensitivity}
+\end{figure}
+
+额定容量由 $6000$ 增至 $18000\ \mathrm{kWh}$ 时，最优费用由 $40020.40$ 降至 $32093.06$ 元；功率上限由 $2500$ 增至 $5000\ \mathrm{kW}$ 时，费用由 $36506.41$ 降至 $35126.85$ 元，再增至 $7500\ \mathrm{kW}$ 时为 $35027.13$ 元。这表明，在本日输入下，提高功率上限的边际节费趋于减弱，但该观察不能替代包含设备投资的容量选择分析。
+
+若将题面的 $90\%$ 解释为往返效率，并取 $\eta_c=\eta_d=\sqrt{0.9}$，费用为 $33801.48$ 元，说明效率解释需要在后续各问中保持一致。光伏输入分别缩放为原值的 $0.8$ 和 $1.2$ 倍并重新优化时，费用分别为 $42268.99$ 和 $30873.96$ 元；这些属于确定性输入敏感性，不能视为既定计划应对真实预测误差的表现。
+
+将附件时间改作时段终点，并在同样初末电量条件下重新优化，费用为 $35126.95$ 元，与主解释相差约 $0.10$ 元。虽然全天费用接近，指定时段的映射并不相同，因此仍保存两套完整策略及逐项对应关系。主结果以模板时段起点解释为准，为后续各问提供统一的时间、设备及费用核算接口。
+
+\section{第二问补充图形}
+\label{app:q2-figures}
+
+\begin{figure}[htbp]
+ \centering\includegraphics[width=\textwidth]{../output/figures/q2_selected_days.pdf}
+ \caption{指定日期的因果运行。a、c、e、g为合同、实际净负荷与紧急补购，共用功率尺度；b、d、f、h为对应储电量，虚线为设备边界。实测曲线用于事后展示和当前反馈，不作为日前已知信息。}
+ \label{fig:q2-days}
+\end{figure}
+
+\begin{figure}[htbp]
+ \centering\includegraphics[width=\textwidth]{../output/figures/q2_risk_tradeoff.pdf}
+ \caption{经济收益及其边界。a：现金费用与日紧急费用经验CVaR95；b：主策略相对各对照的日均残值修正节费，正值表示节省，误差线为七日循环块重采样95\%区间，竖虚线为零差异。}
+ \label{fig:q2-risk}
+\end{figure}
+
+\begin{figure}[htbp]
+ \centering\includegraphics[width=\textwidth]{../output/figures/q2_boundary.pdf}
+ \caption{跨日规划的运行机制。a：334天逐时平均储电量；b：两个时段的日均充电量，条形从零起。三方案预测器、分位数和控制器相同；平均曲线不代表任一实际单日轨迹。}
+ \label{fig:q2-boundary}
+\end{figure}
+
+\section{第三问补充图形}
+\label{app:q3-figures}
+
+\begin{figure}[htbp]
+ \centering\includegraphics[width=\textwidth]{../output/figures/q3_selected_days.pdf}
+ \caption{第三问指定日期的因果运行。a、c、e、g：$0{:}00$计划（点线）、最终有效合同（实线）、实际净负荷与紧急购电，共用功率尺度，竖虚线为$6{:}00$、$12{:}00$、$18{:}00$调整时刻；b、d、f、h：对应储电量，虚线为设备边界。}
+ \label{fig:q3-days}
+\end{figure}
 
 \section{完整源程序}
 
@@ -77,8 +129,16 @@
 \lstinputlisting[language=Python,caption={问题二归档独立校验入口}]{../code/scripts/validate_problem2.py}
 \lstinputlisting[language=Python,caption={问题二手算案例和因果性测试}]{../code/tests/test_problem2.py}
 \lstinputlisting[language=Python,caption={跨日规划、成熟误差与合同边界测试}]{../code/tests/test_problem2_horizon.py}
-% \lstinputlisting[language=Python,caption={问题三求解程序}]{../code/src/cumcm_c/models/problem3.py}
+\lstinputlisting[language=Python,caption={问题三发布预报接入、有偿调整LP与因果日回放}]{../code/src/cumcm_c/models/problem3.py}
+\lstinputlisting[language=Python,caption={问题三独立物理、合同版本与结算校验}]{../code/src/cumcm_c/models/problem3_evaluation.py}
+\lstinputlisting[language=Python,caption={问题三策略目录、连续回放与版本归档}]{../code/src/cumcm_c/problem3_workflow.py}
+\lstinputlisting[language=Python,caption={问题三官方模板展开、回读校验与论文表格}]{../code/src/cumcm_c/problem3_export.py}
+\lstinputlisting[language=Python,caption={问题三报告生成}]{../code/src/cumcm_c/problem3_reporting.py}
+\lstinputlisting[language=Python,caption={问题三图形}]{../code/vis/problem3.py}
+\lstinputlisting[language=Python,caption={问题三求解入口}]{../code/scripts/solve_problem3.py}
+\lstinputlisting[language=Python,caption={问题三归档独立校验入口}]{../code/scripts/validate_problem3.py}
+\lstinputlisting[language=Python,caption={问题三对齐、分位数带、结算与因果测试}]{../code/tests/test_problem3.py}
 % \lstinputlisting[language=Python,caption={问题四求解程序}]{../code/src/cumcm_c/models/problem4.py}
 % \lstinputlisting[language=Python,caption={独立评估与校验程序}]{../code/src/cumcm_c/models/evaluation.py}
 
-【待补充：问题三、四源程序；正式支撑材料的完整清单与版本核对。】
+【待补充：问题四源程序；正式支撑材料的完整清单与版本核对。】

@@ -98,13 +98,7 @@ $\hat{\boldsymbol x}_{j,k,t}=(\hat\ell_{j,k,t},\hat v_{j,k,t})$，
 
 第一提前期负荷与光伏MAE分别为\QTwoLoadMAE\ kW和\QTwoPVMAE\ kW，风险轮廓逐时覆盖率为\QTwoCoverage\%。第一、第二、第三提前期净负荷RMSE分别为\QBLeadOneRMSE、\QBLeadTwoRMSE、\QBLeadThreeRMSE\ kW；各提前期只在其目标实测存在时统计，不能用全年末端缺失的真实标签评价跨年预测。
 
-主方案在\QBEmergencyDays 天、\QBEmergencySlots 个时段发生紧急购电，补购后负荷均得到满足。日紧急费用经验CVaR95为\QBCvar 元，无储能为\QBBaseCvar 元。图~\ref{fig:q2-risk}同时报告平均费用、尾部指标和配对节费区间；七日循环块重采样仅描述本年度配对波动，不消除季节性或替代跨年检验。
-
-\begin{figure}[htbp]
- \centering\includegraphics[width=\textwidth]{../output/figures/q2_risk_tradeoff.pdf}
- \caption{经济收益及其边界。a：现金费用与日紧急费用经验CVaR95；b：主策略相对各对照的日均残值修正节费，正值表示节省，误差线为七日循环块重采样95\%区间，竖虚线为零差异。}
- \label{fig:q2-risk}
-\end{figure}
+主方案在\QBEmergencyDays 天、\QBEmergencySlots 个时段发生紧急购电，补购后负荷均得到满足。日紧急费用经验CVaR95为\QBCvar 元，无储能为\QBBaseCvar 元。附录图~\ref{fig:q2-risk}同时报告平均费用、尾部指标和配对节费区间；七日循环块重采样仅描述本年度配对波动，不消除季节性或替代跨年检验。
 
 \subsection{跨日机制的对照检验}
 
@@ -116,38 +110,20 @@ $\hat{\boldsymbol x}_{j,k,t}=(\hat\ell_{j,k,t},\hat v_{j,k,t})$，
 
 72小时方案及远端残值方案相对B的费用变化分别为\QBSeventyTwoDifference 元、\QBSalvageDifference 元；本次对应的合同和执行轨迹也一致，说明所检验的远端变化未影响当天决策，但不能推导所有视窗或所有负荷条件下都等价。B相对同参24小时的日均修正节费95\%块区间为$[-116.21,51.01]$元，跨过零；保留48小时方案作为跨日机制完整的研究主线，而不宣称其在本年度显著优于旧版。
 
-\begin{figure}[htbp]
- \centering\includegraphics[width=\textwidth]{../output/figures/q2_boundary.pdf}
- \caption{跨日规划的运行机制。a：334天逐时平均储电量；b：两个时段的日均充电量，条形从零起。三方案预测器、分位数和控制器相同；平均曲线不代表任一实际单日轨迹。}
- \label{fig:q2-boundary}
-\end{figure}
-
-B在22--24时的日均充电量为\QBLateCharge\ kWh，旧版为\QBOldLateCharge\ kWh；该时段累计紧急购电为\QBLateEmergency\ kWh，旧版为\QBOldLateEmergency\ kWh。日末平均电量由旧版\QBOldEndMean\ kWh变为\QBEndMean\ kWh，触及下限的天数分别为\QBOldLowerDays 和\QBLowerDays。上述指标用于解释资源配置变化，不将全部晚间补购归因于边界规则。
+平均储电量曲线与分段充电量见附录图~\ref{fig:q2-boundary}。B在22--24时的日均充电量为\QBLateCharge\ kWh，旧版为\QBOldLateCharge\ kWh；该时段累计紧急购电为\QBLateEmergency\ kWh，旧版为\QBOldLateEmergency\ kWh。日末平均电量由旧版\QBOldEndMean\ kWh变为\QBEndMean\ kWh，触及下限的天数分别为\QBOldLowerDays 和\QBLowerDays。上述指标用于解释资源配置变化，不将全部晚间补购归因于边界规则。
 
 电价必须按全部144个时段比较：05:40为全天最低的0.3713元/kWh，22:10为0.3859元/kWh。因此，跨日规划的意义是比较今晚与明日的完整机会集合，而不是断言晚间所有时段均比凌晨便宜；仅凭整点价格比值也不能推导充满阈值。
 
 \subsection{指定日期、敏感性及独立核验}
 
-表~\ref{tab:q2-purchase}列付费计划量及包含紧急费的现金费用，表~\ref{tab:q2-storage}列实际储能运行，表~\ref{tab:q2-emergency}列补购区间。所有日期均继承此前实际状态，不为指定日期单独重置电池。
+表~\ref{tab:q2-purchase}列付费计划量及包含紧急费的现金费用，表~\ref{tab:q2-storage}列实际储能运行，表~\ref{tab:q2-emergency}列补购区间。所有日期均继承此前实际状态，不为指定日期单独重置电池；逐时运行图见附录图~\ref{fig:q2-days}。
 
-\clearpage
 \begingroup
 \renewcommand{\arraystretch}{0.9}
-\setlength{\floatsep}{6pt}
-\let\originaltable\table
-\let\originalendtable\endtable
-\renewenvironment{table}[1][]{\originaltable[H]}{\originalendtable}
 \input{../output/tables/q2_purchase.tex}
 \input{../output/tables/q2_storage.tex}
-\clearpage
 \endgroup
 \input{../output/tables/q2_emergency.tex}
-
-\begin{figure}[htbp]
- \centering\includegraphics[width=\textwidth]{../output/figures/q2_selected_days.pdf}
- \caption{指定日期的因果运行。a、c、e、g为合同、实际净负荷与紧急补购，共用功率尺度；b、d、f、h为对应储电量，虚线为设备边界。实测曲线用于事后展示和当前反馈，不作为日前已知信息。}
- \label{fig:q2-days}
-\end{figure}
 
 另完成\QBSensitivityCases 组指定日局部敏感性，扰动分位数、容量、功率、效率、补购倍率与误差幅度。各组从主方案该日实际初态重新规划，容量改变时保持SOC比例；误差幅度仅缩放历史残差，不改真实供需。数据及图形单独归档，不能把四日比较当作全年稳健性保证或设备投资盈利分析。远端价值与视窗长度已采用上述完整评价区间对照，不再与局部案例混称。
 
