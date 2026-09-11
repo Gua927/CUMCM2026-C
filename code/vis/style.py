@@ -10,6 +10,17 @@ from matplotlib.ticker import MaxNLocator
 CONFIG_PATH=Path(__file__).resolve().parents[1]/"config/visual_style.json"
 STYLE=json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 C=STYLE["colors"]
+CMAP=STYLE.get("colormaps",{"sequential":"viridis"})
+# External QA gates (e.g. a render-time panel-alignment audit) register callables
+# ``hook(fig, folder, name)`` here; they run after the internal preflight and before export.
+PREFLIGHT_HOOKS=[]
+
+
+def tint(color,amount):
+    """Mix a semantic colour with white; ``amount`` 0 keeps the colour, 1 gives white."""
+    r,g,b=(int(color.lstrip("#")[i:i+2],16) for i in (0,2,4))
+    mix=lambda v:int(round(v+(255-v)*amount))
+    return "#{:02X}{:02X}{:02X}".format(mix(r),mix(g),mix(b))
 
 
 def apply_paper_style():
@@ -46,9 +57,14 @@ def figure_size(height_mm,width="full"):
 
 
 def panel(ax,letter,title=""):
+    """Bold panel letter plus a short title above the top-left corner.
+
+    The letter reserves the vertical space in constrained layout; the title is excluded from the
+    layout so a title wider than a narrow panel cannot squeeze the whole row (keep titles short)."""
     if title:
-        ax.annotate(title,(0,1),xycoords="axes fraction",xytext=(16,10),textcoords="offset points",
+        text=ax.annotate(title,(0,1),xycoords="axes fraction",xytext=(16,10),textcoords="offset points",
             fontsize=STYLE["type_pt"]["title"],va="baseline",ha="left",color=C["text"],annotation_clip=False)
+        text.set_in_layout(False)
     ax.annotate(letter,(0,1),xycoords="axes fraction",xytext=(0,10),textcoords="offset points",
             weight="bold",fontsize=STYLE["type_pt"]["panel"],va="baseline",ha="left",color=C["text"],annotation_clip=False)
 
@@ -61,6 +77,34 @@ def clean_axis(ax,grid="y",bins=4):
 
 def time_axis(ax):
     ax.set_xlim(0,24);ax.set_xticks([0,4,8,12,16,20,24]);clean_axis(ax)
+
+
+def inside(*artists):
+    """Mark legends/annotations that live inside the data area so constrained layout ignores them.
+
+    Otherwise a label that pokes past the axes edge is treated as a decoration, the layout
+    reserves a margin for it, the axes shrink, and the label pokes out further (a runaway)."""
+    for artist in artists:
+        if artist is not None:artist.set_in_layout(False)
+    return artists[0] if len(artists)==1 else artists
+
+
+def equalize_tick_widths(fig,axes,axis="y"):
+    """Pad the tick labels of side-by-side panels with spaces so their decoration widths match.
+
+    Constrained layout sizes each panel from its own tick labels, so "3.5" next to "60" makes
+    unequal gutters. Leading spaces keep the ink flush with the ticks while equalising extents."""
+    fig.canvas.draw();renderer=fig.canvas.get_renderer()
+    get=lambda ax:(ax.get_yticklabels() if axis=="y" else ax.get_xticklabels())
+    widths=[max([t.get_window_extent(renderer).width for t in get(ax) if t.get_text()] or [0.0]) for ax in axes]
+    probe=fig.text(0,0,"0 0",fontsize=mpl.rcParams["ytick.labelsize"]);wide=probe.get_window_extent(renderer).width
+    probe.set_text("00");narrow=probe.get_window_extent(renderer).width;probe.remove();space=max(wide-narrow,1e-6)
+    for ax,width in zip(axes,widths):
+        pad=int(round((max(widths)-width)/space))
+        if pad<=0:continue
+        labels=[t.get_text() for t in get(ax)]
+        if axis=="y":ax.set_yticks(ax.get_yticks(),[" "*pad+text for text in labels])
+        else:ax.set_xticks(ax.get_xticks(),[" "*pad+text for text in labels])
 
 
 def save_figure(fig,folder,name,description=""):
@@ -79,6 +123,7 @@ def save_figure(fig,folder,name,description=""):
         extent=artist.get_window_extent(fig.canvas.get_renderer())
         if extent.width and extent.height and (extent.x0 < -2 or extent.y0 < -2 or extent.x1>bbox.width+2 or extent.y1>bbox.height+2):violations.append(f"text outside canvas: {artist.get_text()}")
     if violations:raise ValueError("Figure preflight: "+"; ".join(violations))
+    for hook in PREFLIGHT_HOOKS:hook(fig,folder,name)
     for ext in STYLE["export"]["formats"]:
         metadata={"Creator":"CUMCM scientific figure pipeline","Title":name}
         if ext=="pdf":metadata.update(CreationDate=None,ModDate=None,Subject=description)

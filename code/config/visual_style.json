@@ -1,23 +1,68 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "CUMCM Scientific / journal-inspired",
-  "width_mm": {"single": 78, "full": 160},
-  "fonts": {"latin": "Arial", "cjk": "Microsoft YaHei", "fallback": "DejaVu Sans"},
-  "type_pt": {"base": 8.5, "label": 9, "title": 9, "panel": 10, "legend": 8, "minimum": 8},
-  "stroke_pt": {"data": 1.1, "emphasis": 1.5, "axis": 0.6, "grid": 0.4, "reference": 0.7},
-  "colors": {
-    "grid": "#0072B2", "pv": "#E69F00", "soc": "#009E73",
-    "charge": "#56B4E9", "discharge": "#009E73", "emergency": "#D55E00",
-    "price": "#CC79A7", "load": "#3D4651", "baseline": "#7D8896",
-    "rule": "#E69F00", "reference": "#8A6F9E", "mpc": "#009E73",
-    "text": "#202A35", "muted": "#66727E", "gridline": "#DCE2E7",
-    "surface": "#F6F8FA", "white": "#FFFFFF"
+  "width_mm": {
+    "single": 78,
+    "full": 160
   },
-  "export": {"formats": ["pdf", "svg", "png"], "png_dpi": 400, "preview_dpi": 150},
+  "fonts": {
+    "latin": "Arial",
+    "cjk": "Microsoft YaHei",
+    "fallback": "DejaVu Sans"
+  },
+  "type_pt": {
+    "base": 8.5,
+    "label": 9,
+    "title": 9,
+    "panel": 10,
+    "legend": 8,
+    "minimum": 8
+  },
+  "stroke_pt": {
+    "data": 1.1,
+    "emphasis": 1.5,
+    "axis": 0.6,
+    "grid": 0.4,
+    "reference": 0.7
+  },
+  "colors": {
+    "grid": "#0072B2",
+    "pv": "#E69F00",
+    "soc": "#009E73",
+    "charge": "#56B4E9",
+    "discharge": "#009E73",
+    "emergency": "#D55E00",
+    "price": "#CC79A7",
+    "load": "#3D4651",
+    "baseline": "#7D8896",
+    "rule": "#E69F00",
+    "reference": "#8A6F9E",
+    "mpc": "#009E73",
+    "text": "#202A35",
+    "muted": "#66727E",
+    "gridline": "#DCE2E7",
+    "surface": "#F6F8FA",
+    "white": "#FFFFFF"
+  },
+  "export": {
+    "formats": [
+      "pdf",
+      "svg",
+      "png"
+    ],
+    "png_dpi": 400,
+    "preview_dpi": 150
+  },
   "rules": {
-    "bars_start_at_zero": true, "same_quantity_same_color": true,
+    "bars_start_at_zero": true,
+    "same_quantity_same_color": true,
     "no_decorative_smoothing": true,
     "time_interval_rendering": "right-continuous step, including final interval",
-    "uncertainty_requires_definition": true, "vector_pdf_embedded_fonts": true
+    "uncertainty_requires_definition": true,
+    "vector_pdf_embedded_fonts": true,
+    "difference_charts_declare_axis_range": true
+  },
+  "colormaps": {
+    "sequential": "viridis"
   }
 }

@@ -58,15 +58,15 @@
 
 \subsection{信息价值分解与预报时点的必要性}
 
-表~\ref{tab:q3-comparison}在相同实际轨迹、初态、执行器和结算口径下比较14种策略。按式~\eqref{eq:voi}逐层分解：从第二问策略到“融合预报、仅计划”，$0{:}00$外部预报经融合进入计划带来\QThreeValueExternalPlan 元；从“仅计划”到“三时点调整但光伏预报冻结为$0{:}00$版本”，仅凭实际SOC与负荷偏差反馈即节省\QThreeValueAdjustNoInfo 元；再改用最新发布版本，只再节省\QThreeValueFreshInfo 元，日均差的95\%区间$[\QThreeCIStaleLow,\QThreeCIStaleHigh]$元跨过零。因此，调整机制的主要价值来自合同调整权限与状态反馈，而不是日内光伏预报精度的提高；后者的作用与图~\ref{fig:q3-value}c所示的误差下降并不成比例，原因是白天光伏偏差多数可由储能吸收，而费用集中的晚高峰缺口与光伏预报无关。
+表~\ref{tab:q3-comparison}在相同实际轨迹、初态、执行器和结算口径下比较14种策略。按式~\eqref{eq:voi}逐层分解（图~\ref{fig:q3-value}a）：从第二问策略到“融合预报、仅计划”，$0{:}00$外部预报经融合进入计划带来\QThreeValueExternalPlan 元；从“仅计划”到“三时点调整但光伏预报冻结为$0{:}00$版本”，仅凭实际SOC与负荷偏差反馈即节省\QThreeValueAdjustNoInfo 元；再改用最新发布版本，只再节省\QThreeValueFreshInfo 元，日均差的95\%区间$[\QThreeCIStaleLow,\QThreeCIStaleHigh]$元跨过零。因此，调整机制的主要价值来自合同调整权限与状态反馈，而不是日内光伏预报精度的提高；后者的作用与图~\ref{fig:q3-value}d所示的误差下降并不成比例，原因是白天光伏偏差多数可由储能吸收，而费用集中的晚高峰缺口与光伏预报无关。
 
 \input{../output/tables/q3_comparison.tex}
 
-各时点的边际价值互不相同。在三时点基础上去掉$6{:}00$、$12{:}00$、$18{:}00$，费用分别增加\QThreeMarginalSix、\QThreeMarginalTwelve、\QThreeMarginalEighteen 元；单独使用一个时点时，节省分别为\QThreeSingleSix、\QThreeSingleTwelve、\QThreeSingleEighteen 元。$18{:}00$最为重要：此时晚高峰前的实际电量、当日负荷水平已经确定，恰可用$1.5$倍电价的上调替代$5$倍电价的紧急补购。$12{:}00$次之，其作用主要是收回中午被高估的计划电量。$6{:}00$的边际价值最小，去掉它的日均费用差区间$[\QThreeCIDropSixLow,\QThreeCIDropSixHigh]$元跨过零。就“是否需要引入其他时刻的预报”而言：三个时点的边际收益均为正，全部引入是主策略；若只能保留一个，应保留$18{:}00$；若保留两个，应为$12{:}00$与$18{:}00$。附件之外并不存在其他时刻的真实预报，本文不虚构新增版本；上述结果表明，若要增设时点，优先级应按晚高峰前的状态反馈价值而非光伏预报精度排序。
+各时点的边际价值互不相同（图~\ref{fig:q3-value}b）。在三时点基础上去掉$6{:}00$、$12{:}00$、$18{:}00$，费用分别增加\QThreeMarginalSix、\QThreeMarginalTwelve、\QThreeMarginalEighteen 元；单独使用一个时点时，节省分别为\QThreeSingleSix、\QThreeSingleTwelve、\QThreeSingleEighteen 元。$18{:}00$最为重要：此时晚高峰前的实际电量、当日负荷水平已经确定，恰可用$1.5$倍电价的上调替代$5$倍电价的紧急补购。$12{:}00$次之，其作用主要是收回中午被高估的计划电量（图~\ref{fig:q3-value}c）。$6{:}00$的边际价值最小，去掉它的日均费用差区间$[\QThreeCIDropSixLow,\QThreeCIDropSixHigh]$元跨过零。就“是否需要引入其他时刻的预报”而言：三个时点的边际收益均为正，全部引入是主策略；若只能保留一个，应保留$18{:}00$；若保留两个，应为$12{:}00$与$18{:}00$。附件之外并不存在其他时刻的真实预报，本文不虚构新增版本；上述结果表明，若要增设时点，优先级应按晚高峰前的状态反馈价值而非光伏预报精度排序。
 
 \begin{figure}[htbp]
  \centering\includegraphics[width=\textwidth]{../output/figures/q3_information_value.pdf}
- \caption{信息价值与预报误差。a：各策略相对同一预报下仅$0{:}00$计划策略的334天现金节费，正值为节省，蓝色为调整时点组合，灰纹为对照；b：各发布版本24小时窗口的光伏MAE；c：当日剩余时段的MAE，$0{:}00$版本与最新版本对比。}
+ \caption{信息价值与预报误差。a：四个策略的334天现金费用阶梯，标注相邻差值，竖线为各策略与主策略日均费用差的95\%配对区间（换算为334天）；b：单一时点相对仅计划策略的节省，以及从三时点中去掉该时点的损失，误差线为95\%配对区间；c：各发布版本按目标小时的日均上调与取消电量，取消为负并加斜纹；d：各发布版本24小时窗口的光伏MAE。}
  \label{fig:q3-value}
 \end{figure}
 

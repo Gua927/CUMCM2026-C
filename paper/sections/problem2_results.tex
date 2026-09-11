@@ -88,17 +88,17 @@ $\hat{\boldsymbol x}_{j,k,t}=(\hat\ell_{j,k,t},\hat v_{j,k,t})$，
 
 \input{../output/tables/q2_comparison.tex}
 
-无储能基线使用相同预测信息和80\%分位数；点预测基线沿用主方案的视窗及控制器但不增加风险余量。主方案相对两者的现金节费率分别为\QTwoSaving\%和\QBPointSaving\%。图~\ref{fig:q2-cost}分别展示费用构成与月度变化，不能将总费用优势解释为每个费用分量同时下降。
+无储能基线使用相同预测信息和80\%分位数；点预测基线沿用主方案的视窗及控制器但不增加风险余量。主方案相对两者的现金节费率分别为\QTwoSaving\%和\QBPointSaving\%。图~\ref{fig:q2-cost}a以指定日期中紧急购电最多的一天展示风险余量的作用机制：合同覆盖到情景净负荷的$0.8$分位数，实际净负荷超出合同且储能无法补足的时段才触发紧急购电；图~\ref{fig:q2-cost}b展示费用构成，主方案以略高的计划费换回更低的紧急费，不能将总费用优势解释为每个费用分量同时下降。
 
 \begin{figure}[htbp]
- \centering\includegraphics[width=\textwidth]{../output/figures/q2_cost_comparison.pdf}
- \caption{固定合同下的费用比较。a：334天计划费与紧急费堆叠，横轴从零起；b：逐月现金费用，标记与线型辅助区分策略。}
+ \centering\includegraphics[width=\textwidth]{../output/figures/q2_risk_planning.pdf}
+ \caption{固定合同下的风险规划与费用比较。a：指定日期中紧急购电最多的一天（2025-09-23），灰带为56条成对残差扰动情景净负荷的5\%--95\%与25\%--75\%范围，实线为$0.8$分位数风险轮廓，蓝色为日前合同，斜纹为紧急购电；b：334天计划费与紧急费堆叠，横轴从零起；c：主方案相对各对照的日均现金节省，误差线为七日循环块重采样95\%区间；d：334天费用与日紧急费用经验CVaR95。}
  \label{fig:q2-cost}
 \end{figure}
 
 第一提前期负荷与光伏MAE分别为\QTwoLoadMAE\ kW和\QTwoPVMAE\ kW，风险轮廓逐时覆盖率为\QTwoCoverage\%。第一、第二、第三提前期净负荷RMSE分别为\QBLeadOneRMSE、\QBLeadTwoRMSE、\QBLeadThreeRMSE\ kW；各提前期只在其目标实测存在时统计，不能用全年末端缺失的真实标签评价跨年预测。
 
-主方案在\QBEmergencyDays 天、\QBEmergencySlots 个时段发生紧急购电，补购后负荷均得到满足。日紧急费用经验CVaR95为\QBCvar 元，无储能为\QBBaseCvar 元。附录图~\ref{fig:q2-risk}同时报告平均费用、尾部指标和配对节费区间；七日循环块重采样仅描述本年度配对波动，不消除季节性或替代跨年检验。
+主方案在\QBEmergencyDays 天、\QBEmergencySlots 个时段发生紧急购电，补购后负荷均得到满足。日紧急费用经验CVaR95为\QBCvar 元，无储能为\QBBaseCvar 元。图~\ref{fig:q2-cost}c、d同时报告配对节费区间与尾部指标；七日循环块重采样仅描述本年度配对波动，不消除季节性或替代跨年检验。
 
 \subsection{跨日机制的对照检验}
 

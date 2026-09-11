@@ -12,7 +12,8 @@ import pandas as pd
 from cumcm_c.paths import PATHS
 from cumcm_c.models.common import Battery
 from .style import CONFIG_PATH,STYLE,C,theme_dashboard
-from .publication import q1_figures,q2_figures,q2_risk_figure,q2_boundary_figure
+from .publication import q1_figures,q2_figures,q2_boundary_figure
+from .framework import framework_figure
 from .problem1 import dashboard as dashboard1
 from .problem2 import dashboard as dashboard2
 
@@ -43,12 +44,13 @@ def build():
         f=folders["problem1"];cfg1=json.loads((f/"config.json").read_text());b1=Battery(**cfg1["battery"])
         schedule=pd.read_csv(f/"optimized_schedule.csv")
         q1_figures(schedule,pd.read_csv(f/"comparison.csv"),pd.read_csv(f/"sensitivity.csv"),pd.read_csv(f/"lp_duals.csv"),b1,out/"figures")
+        framework_figure(schedule,out/"figures")
         dashboard1(schedule,sources["problem1"]["summary"],sources["problem1"]["summary"]["time_convention"],out/"problem1-dashboard.html",b1)
         f=folders["problem2"];cfg2=json.loads((f/"config.json").read_text());comparison=pd.read_csv(f/"comparison.csv")
         trajectories={name:pd.read_csv(f/f"strategies/{name}.csv") for name in comparison.strategy}
-        main=trajectories["risk_policy"]
-        q2_figures(main,comparison,trajectories,pd.read_csv(f/"sensitivity.csv"),cfg2["report_dates"],out/"figures",Battery(**cfg2["battery"]))
-        q2_risk_figure(comparison,json.loads((f/"paired_comparisons.json").read_text()),out/"figures")
+        main=trajectories["risk_policy"];paired2=json.loads((f/"paired_comparisons.json").read_text())
+        scenarios={d:pd.read_csv(f/f"strategies/scenarios_{d}_lead1.csv").to_numpy() for d in cfg2["report_dates"] if (f/f"strategies/scenarios_{d}_lead1.csv").exists()}
+        q2_figures(main,comparison,trajectories,pd.read_csv(f/"sensitivity.csv"),cfg2["report_dates"],out/"figures",Battery(**cfg2["battery"]),paired=paired2,scenarios=scenarios)
         if (f/"boundary_comparison.csv").exists():
             boundary_frames={name:pd.read_csv(f/f"boundary/{name}.csv") for name in ("matched24","A24")}
             q2_boundary_figure(pd.read_csv(f/"boundary_comparison.csv"),main,boundary_frames,out/"figures")
@@ -57,14 +59,16 @@ def build():
             from .problem3 import q3_figures
             f=folders["problem3"];cfg3=json.loads((f/"config.json").read_text());comparison3=pd.read_csv(f/"comparison.csv")
             trajectories3={name:pd.read_csv(f/f"strategies/{name}.csv") for name in comparison3.strategy}
-            q3_figures(trajectories3["adjust_all"],comparison3,trajectories3,pd.read_csv(f/"forecast_diagnostics.csv"),cfg3["report_dates"],out/"figures",Battery(**cfg3["battery"]))
+            q3_figures(trajectories3["adjust_all"],comparison3,trajectories3,pd.read_csv(f/"forecast_diagnostics.csv"),cfg3["report_dates"],out/"figures",Battery(**cfg3["battery"]),
+                       paired=json.loads((f/"paired_comparisons.json").read_text()),adjustments=pd.read_csv(f/"issued_adjustments.csv"))
         if "problem4" in folders:
             from .problem4 import q4_figures
             f=folders["problem4"];comparison4=pd.read_csv(f/"comparison.csv")
             trajectories4={name:pd.read_csv(f/f"strategies/{name}.csv") for name in comparison4.strategy}
             from cumcm_c.data import problem1_intervals
             q4_figures(trajectories4,comparison4,pd.read_csv(f/"price_table.csv"),pd.read_csv(f/"price_forecast_errors.csv"),
-                       json.loads((f/"references.json").read_text()),problem1_intervals("start").price_yuan_per_kwh.to_numpy(),out/"figures")
+                       json.loads((f/"references.json").read_text()),problem1_intervals("start").price_yuan_per_kwh.to_numpy(),out/"figures",
+                       paired=json.loads((f/"paired_comparisons.json").read_text()))
         for path in (PATHS.root/"code/vis").glob("*.py"):shutil.copy2(path,out/"source"/path.name)
         for relative in ("code/scripts/render_publication.py","code/tests/test_visual_style.py"):
             shutil.copy2(PATHS.root/relative,out/"source"/Path(relative).name)
@@ -106,17 +110,17 @@ def build():
 
 
 def gallery(folder,target):
-    descriptions={"q1_dispatch":"01 / 时间配置与储能状态","q1_comparison":"02 / 费用、电量与光伏消纳",
+    descriptions={"framework":"00 / 四问的信息、决策与结算时间线（示意）",
+       "q1_dispatch":"01 / 购电、储能动作、储电量与边际成本的同刻对应","q1_comparison":"02 / 费用、电量与光伏消纳",
        "q1_sensitivity":"03 / 设备参数的边际影响","q2_selected_days":"04 / 四个指定日期的因果运行",
-       "q2_cost_comparison":"05 / 费用分解与季节变化","q2_sensitivity":"06 / 风险参数的局部敏感性",
-       "q2_risk_tradeoff":"07 / 平均收益、尾部风险与比较不确定性"}
-    if (folder/"q2_boundary.style.json").exists():descriptions["q2_boundary"]="08 / 跨日资源配置与充电时序"
+       "q2_risk_planning":"05 / 净负荷情景带、风险余量、费用构成与配对区间","q2_sensitivity":"06 / 风险参数的局部敏感性"}
+    if (folder/"q2_boundary.style.json").exists():descriptions["q2_boundary"]="07 / 跨日资源配置与充电时序"
     if (folder/"q3_selected_days.style.json").exists():
-        descriptions["q3_selected_days"]="09 / 四个指定日期的计划、最终合同与紧急购电"
-        descriptions["q3_information_value"]="10 / 调整时点组合、预报误差与信息价值"
+        descriptions["q3_selected_days"]="08 / 四个指定日期的计划、最终合同与紧急购电"
+        descriptions["q3_information_value"]="09 / 信息价值阶梯、时点边际价值、调整足迹与预报误差"
     if (folder/"q4_prices.style.json").exists():
-        descriptions["q4_prices"]="11 / 实时电价结构与因果价格预测误差"
-        descriptions["q4_costs"]="12 / 实时价结算下第二、三问策略的费用"
+        descriptions["q4_prices"]="10 / 实时电价的星期×时段结构、净负荷驱动与因果预测误差"
+        descriptions["q4_costs"]="11 / 实时价结算下的费用阶梯：结算、预测、信息与机制效应"
     cards=[]
     for name,title in descriptions.items():
         meta=json.loads((folder/f"{name}.style.json").read_text())
