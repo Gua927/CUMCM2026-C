@@ -67,6 +67,11 @@ def build():
             if (root/name).exists():shutil.copy2(root/name,previous/name)
             shutil.copy2(out/name,root/name)
         gallery(root/"figures",root/"visualization-gallery.html")
+        gallery_path=root/"visualization-gallery.html"
+        themed=gallery_path.read_text(encoding="utf-8")
+        for old,key in {"#f6f8fa":"surface","#202a35":"text","#0072b2":"grid","#dce2e7":"gridline","#66727e":"muted"}.items():
+            themed=themed.replace(old,C[key])
+        gallery_path.write_text(theme_dashboard(themed),encoding="utf-8")
         archived_gallery=(root/"visualization-gallery.html").read_text(encoding="utf-8")
         archived_gallery=archived_gallery.replace('../code/vis/STYLE_GUIDE.md','STYLE_GUIDE.md').replace('href="paper/main.pdf"','href="../../../paper/main.pdf"')
         (out/"gallery.html").write_text(archived_gallery,encoding="utf-8")

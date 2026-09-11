@@ -1,5 +1,7 @@
 """Executable publication contract; no experimental data are modified."""
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -71,6 +73,41 @@ class VisualStyleTests(unittest.TestCase):
         self.assertIn(C["soc"],themed)
         self.assertNotIn("#8e5ea2",themed)
         self.assertIn("const d=[1.25,2.5];",themed)
+
+    @unittest.skipUnless(shutil.which("node"),"Node needed for offline dashboard runtime check")
+    def test_published_dashboard_time_boundaries(self):
+        if not (ROOT/"output/problem2-dashboard.html").exists():
+            self.skipTest("No published data yet")
+        # A DOM mock checks data paths and event code, not browser visual layout.
+        script=r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+for(const q of [1,2]){
+ const nodes={};
+ function element(){return {children:[],attrs:{},value:'',viewBox:{baseVal:{height:280}},
+  setAttribute(k,v){this.attrs[k]=String(v)},appendChild(n){this.children.push(n)},
+  addEventListener(){},getBoundingClientRect(){return {left:0,width:1080}},
+  set innerHTML(v){this.children=[]}}}
+ const document={getElementById(id){return nodes[id]??(nodes[id]=element())},
+  createElement:element,createElementNS:element};
+ const html=fs.readFileSync(`output/problem${q}-dashboard.html`,'utf8');
+ const context=vm.createContext({document,console});
+ vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
+ const dates=q===2?vm.runInContext('Object.keys(data)',context):['q1'];
+ for(const date of dates){
+  if(q===2)vm.runInContext(`select.value=${JSON.stringify(date)};draw()`,context);
+  vm.runInContext('pick(143)',context);
+  assert(!nodes.detail.textContent.includes('NaN'));
+  const paths=nodes.soc.children.filter(n=>n.attrs.d);
+  assert.equal(paths.length,1);
+  const vertices=paths[0].attrs.d.match(/[ML][^ML]+/g);
+  assert.equal(vertices.length,145);
+  const last=vertices[144].slice(1).split(',').map(Number);
+  assert.equal(last[0],q===1?1040:1050);
+  assert(last.every(Number.isFinite));
+ }
+}
+'''
+        subprocess.run([shutil.which("node"),"-e",script],cwd=ROOT,check=True,capture_output=True,text=True)
 
 
 if __name__=="__main__":unittest.main()

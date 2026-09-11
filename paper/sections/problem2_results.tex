@@ -98,6 +98,9 @@ $(c_t-\varepsilon,d_t-\eta_c\eta_d\varepsilon)$，所需净购电不增加，储
 \begingroup
 \renewcommand{\arraystretch}{0.9}
 \setlength{\floatsep}{6pt}
+\let\originaltable\table
+\let\originalendtable\endtable
+\renewenvironment{table}[1][]{\originaltable[H]}{\originalendtable}
 \input{../output/tables/q2_purchase.tex}
 \input{../output/tables/q2_storage.tex}
 \clearpage
