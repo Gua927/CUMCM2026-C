@@ -1,149 +1,235 @@
-"""Vector flowchart of the modelling route: shared foundation, four-problem progression, common goal.
+"""Hand-drawn (Excalidraw / rough.js style) flowchart of the modelling route — main figure.
 
-Layout (160 x 92 mm, three columns, like a venue-style framework diagram):
-  left   – microgrid energy flow abstracted from the problem statement, problem 1 as the core
-           deterministic model, and the constraints/accounting shared by every problem;
-  centre – problems 2–4 stacked top-down; each step widens the information set or the trading
-           permission and inherits the state of the previous one;
-  right  – the common objective collected from problems 2–4, the causal decision loop that
-           executes them, and the same-condition contrasts used to explain cost changes.
-Schematic only: no simulated trajectories are drawn; device limits quote the problem statement.
+The composition replicates the team's earlier hand-drawn overview diagram in layout terms: a
+dashed title band, a dashed "问题1" foundation group on the left with vertical text boxes and a
+shared-model box, ellipse problem tags, a large dashed frame in which the remaining problems
+progress top-down with hollow block arrows, a vertical collector line that joins every problem
+to a dashed "common objective" chain on the right, and a diamond end node.
+
+Rendering: every stroke is drawn twice with smooth low-frequency jitter (deterministic seed),
+like rough.js in "architect" mode; text uses the open-licence handwriting font Xiaolai
+(小赖字体, SIL OFL), the CJK font Excalidraw itself uses. Schematic only; no simulated data.
 """
 from __future__ import annotations
 
+from pathlib import Path as FsPath
+
 import matplotlib
 matplotlib.use('Agg')
+import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
-from .style import C, apply_paper_style, figure_size, save_figure, tint
+from matplotlib import font_manager
+from matplotlib.font_manager import FontProperties
+from matplotlib.patches import PathPatch, Polygon
+from matplotlib.path import Path
+from .style import apply_paper_style, figure_size, save_figure
 
-W, H = 160.0, 92.0
-NEUTRAL_EDGE = '#B4BDC6'
+# Reference raster is 2000 x 1138 display pixels for a 160 mm wide figure: 0.08 mm per pixel.
+PX = 0.08
+W, H = 160.0, 91.0
+INK = '#1E1E1E'
+THIN, BOLD = 0.7, 1.3                       # stroke widths in pt
+DASH_THIN, DASH_BOLD = (0, (4.5, 2.9)), (0, (3.8, 2.1))   # scaled by linewidth
+HAND_FONT_CANDIDATES = ('Xiaolai', '小赖字体', 'Xiaolai Mono')
+
+
+def hand_font():
+    """Locate the handwriting font; register user-installed copies and fail loudly if absent."""
+    for folder in (FsPath.home()/'.local/share/fonts', FsPath('/usr/share/fonts'), FsPath('/usr/local/share/fonts')):
+        for file in folder.rglob('Xiaolai*.ttf') if folder.exists() else ():
+            font_manager.fontManager.addfont(str(file))
+    for name in HAND_FONT_CANDIDATES:
+        try:
+            return FontProperties(fname=font_manager.findfont(name, fallback_to_default=False))
+        except ValueError:
+            continue
+    raise RuntimeError('Handwriting font Xiaolai (小赖字体) not installed; download Xiaolai-Regular.ttf '
+                       'from github.com/lxgw/kose-font into ~/.local/share/fonts')
+
+
+class Rough:
+    """rough.js-like sketchy strokes: two passes, smooth perpendicular wobble, deterministic."""
+
+    def __init__(self, ax, seed=2026, amp=0.055):
+        self.ax, self.rng, self.amp = ax, np.random.default_rng(seed), amp
+
+    def _wobble(self, pts, closed):
+        pts = np.asarray(pts, float)
+        if closed:
+            pts = np.vstack([pts, pts[:1]])
+        out = []
+        for a, b in zip(pts[:-1], pts[1:]):
+            seg = b - a; length = float(np.hypot(*seg))
+            if length < 1e-6:
+                continue
+            n = max(3, int(length/0.7))
+            t = np.linspace(0, 1, n, endpoint=False)
+            normal = np.array([-seg[1], seg[0]])/length
+            f1, f2 = self.rng.uniform(.6, 1.4), self.rng.uniform(1.6, 3.0)
+            p1, p2 = self.rng.uniform(0, 2*np.pi, 2)
+            a1, a2 = self.rng.normal(0, self.amp), self.rng.normal(0, self.amp*.5)
+            bow = self.rng.normal(0, self.amp*.8)*min(1.0, length/12)
+            off = a1*np.sin(2*np.pi*f1*t + p1) + a2*np.sin(2*np.pi*f2*t + p2) + bow*np.sin(np.pi*t)
+            out.append(a + seg*t[:, None] + normal*off[:, None])
+        out.append(pts[-1:])
+        return np.vstack(out)
+
+    def stroke(self, pts, closed=False, lw=THIN, dashed=False, bold=False, passes=2, zorder=3):
+        lw = BOLD if bold else lw
+        ls = (DASH_BOLD if bold else DASH_THIN) if dashed else '-'
+        if dashed:
+            passes = 1                      # crisp dashes: one sketchy pass only
+        for k in range(passes):
+            wob = self._wobble(pts, closed)
+            codes = [Path.MOVETO] + [Path.LINETO]*(len(wob)-1)
+            self.ax.add_patch(PathPatch(Path(wob, codes), fill=False, lw=lw, ec=INK, ls=ls,
+                                        capstyle='round', joinstyle='round', zorder=zorder,
+                                        alpha=1.0 if k == 0 else .55))
+
+    # --- shapes -------------------------------------------------------------------------
+    @staticmethod
+    def rounded_rect_pts(x, y, w, h, r):
+        r = min(r, w/2, h/2); pts = []
+        for cx, cy, a0 in ((x+w-r, y+h-r, 0), (x+r, y+h-r, 90), (x+r, y+r, 180), (x+w-r, y+r, 270)):
+            ang = np.radians(np.linspace(a0, a0+90, 7))
+            pts += list(zip(cx + r*np.cos(ang), cy + r*np.sin(ang)))
+        return pts
+
+    def rect(self, x, y, w, h, r=1.6, dashed=False, bold=False, fill=True):
+        pts = self.rounded_rect_pts(x, y, w, h, r)
+        if fill:
+            self.ax.add_patch(Polygon(pts, closed=True, fc='white', ec='none', zorder=2))
+        self.stroke(pts, closed=True, dashed=dashed, bold=bold)
+
+    def ellipse(self, cx, cy, rx, ry):
+        ang = np.linspace(0, 2*np.pi, 48, endpoint=False)
+        pts = list(zip(cx + rx*np.cos(ang), cy + ry*np.sin(ang)))
+        self.ax.add_patch(Polygon(pts, closed=True, fc='white', ec='none', zorder=2))
+        self.stroke(pts, closed=True)
+
+    def diamond(self, cx, cy, hw, hh):
+        pts = [(cx+hw, cy), (cx, cy+hh), (cx-hw, cy), (cx, cy-hh)]
+        self.ax.add_patch(Polygon(pts, closed=True, fc='white', ec='none', zorder=2))
+        self.stroke(pts, closed=True)
+
+    def arrow(self, pts, dashed=False, head=1.7):
+        """Polyline with an open V head at the last point (Excalidraw's default arrowhead)."""
+        self.stroke(pts, dashed=dashed)
+        (x0, y0), (x1, y1) = pts[-2], pts[-1]
+        ang = np.arctan2(y1-y0, x1-x0)
+        for d in (np.radians(28), -np.radians(28)):
+            self.stroke([(x1 - head*np.cos(ang+d), y1 - head*np.sin(ang+d)), (x1, y1)], passes=1)
+
+    def block_arrow_down(self, cx, y_top, y_tip, shaft=2.3, head_w=5.6, head_h=3.0):
+        s, hw = shaft/2, head_w/2; y_neck = y_tip + head_h
+        pts = [(cx-s, y_top), (cx+s, y_top), (cx+s, y_neck), (cx+hw, y_neck), (cx, y_tip),
+               (cx-hw, y_neck), (cx-s, y_neck)]
+        self.ax.add_patch(Polygon(pts, closed=True, fc='white', ec='none', zorder=2))
+        self.stroke(pts, closed=True)
 
 
 def framework_figure(schedule, folder):
-    """Draw the framework flowchart; ``schedule`` is accepted for build-pipeline compatibility."""
+    """Draw the hand-drawn framework; ``schedule`` is accepted for build-pipeline compatibility."""
     apply_paper_style()
+    font = hand_font()
     fig = plt.figure(figsize=figure_size(H))
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set(xlim=(0, W), ylim=(0, H)); ax.axis('off')
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set(xlim=(0, W), ylim=(0, H)); ax.axis('off')
+    R = Rough(ax)
 
-    def txt(x, y, label, size=8, color='text', weight='normal', ha='center', rotation=0):
-        return ax.text(x, y, label, fontsize=size, color=C.get(color, color), weight=weight,
-                       ha=ha, va='center', rotation=rotation, linespacing=1.0)
+    def X(px): return px*PX
+    def Y(px): return H - px*PX          # reference pixel rows count from the top
 
-    def panel(x, y, w, h, title):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0,rounding_size=1.8',
-                                    fc=C['surface'], ec='none', zorder=0))
-        txt(x + 2.5, y + h + 3.6, title, 9, 'text', 'bold', ha='left')
+    def text(px, py, s, size=8, ha='center', va='center', vertical=False, spacing=1.38):
+        if vertical:
+            s = '\n'.join(s)
+        return ax.text(X(px), Y(py), s, fontproperties=font, fontsize=size, color=INK, ha=ha, va=va,
+                       linespacing=spacing if vertical else 1.25, zorder=5)
 
-    def box(x, y, w, h, title, lines=(), color=None, title_size=8.5, pitch=4.1, top=4.5):
-        edge = tint(C[color], .25) if color else NEUTRAL_EDGE
-        face = tint(C[color], .95) if color else C['white']
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0,rounding_size=1.2',
-                                    fc=face, ec=edge, lw=.8, zorder=1))
-        txt(x + w/2, y + h - top, title, title_size, color or 'text', 'bold')
-        for i, line in enumerate(lines):
-            txt(x + w/2, y + h - top - 4.9 - pitch*i, line)
+    def rect(x0, y0, x1, y1, **kw):
+        R.rect(X(x0), Y(y1), X(x1)-X(x0), Y(y0)-Y(y1), **kw)
 
-    def node(x, y, w, h, title, detail, color):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0,rounding_size=0.9',
-                                    fc=tint(C[color], .9), ec=tint(C[color], .3), lw=.6, zorder=1))
-        txt(x + w/2, y + h - 2.1, title, 8, color, 'bold')
-        txt(x + w/2, y + 2.0, detail, 8)
+    def line(points, **kw): R.stroke([(X(px), Y(py)) for px, py in points], **kw)
+    def arrow(points, **kw): R.arrow([(X(px), Y(py)) for px, py in points], **kw)
 
-    def line(points, dashed=False, color='load', arrow=True, both=False):
-        for a, b in zip(points[:-2], points[1:-1]):
-            ax.plot([a[0], b[0]], [a[1], b[1]], color=C[color], lw=.8, ls=(0, (3, 2)) if dashed else '-',
-                    solid_capstyle='round', zorder=2)
-        if arrow:
-            ax.annotate('', xy=points[-1], xytext=points[-2], zorder=2,
-                        arrowprops=dict(arrowstyle='<|-|>' if both else '-|>', color=C[color], lw=.8,
-                                        mutation_scale=7, shrinkA=0, shrinkB=0,
-                                        linestyle=(0, (3, 2)) if dashed else '-'))
-        else:
-            a, b = points[-2], points[-1]
-            ax.plot([a[0], b[0]], [a[1], b[1]], color=C[color], lw=.8, ls=(0, (3, 2)) if dashed else '-', zorder=2)
+    # ------------------------------------------------------------------ title band
+    rect(8, 8, 1992, 140, r=2.4, dashed=True, bold=True, fill=False)
+    text(1000, 74, '微网储能调度策略建模与优化流程', 13)
 
-    # ------------------------------------------------------------------ column backgrounds
-    panel(2, 2, 44, 82, '基础与共用')
-    panel(50, 2, 62, 82, '四问递进：信息与交易权限逐步放开')
-    panel(116, 2, 42, 82, '目标、闭环与对照')
+    # ------------------------------------------------------------------ problem 1 group (left)
+    R.ellipse(X(200), Y(207), X(62), X(38)); text(200, 207, '问题1', 8.5)
+    rect(8, 262, 485, 1115, r=2.4, dashed=True, bold=True, fill=False)
+    rect(60, 275, 400, 700, r=2.0, dashed=True, fill=False)
+    rect(105, 292, 190, 640, r=2.2); text(147, 466, '抽象微网能量流', vertical=True)
+    rect(215, 285, 300, 680, r=2.2); text(257, 482, '提取储能与费用性质', vertical=True)
+    line([(230, 700), (230, 760)])
+    rect(80, 760, 380, 910, r=2.0)
+    text(230, 800, '建立单日调度模型'); text(230, 838, '进行基线分析'); text(230, 878, '得到费用基准')
+    line([(230, 910), (230, 955)], dashed=True); text(268, 932, '引入', ha='left')
+    rect(25, 955, 470, 1090, r=2.2, dashed=True, fill=False); text(247, 978, '全局使用')
+    rect(45, 998, 240, 1078, r=1.8); text(142, 1018, '电量平衡'); text(142, 1058, '设备约束')
+    rect(300, 998, 455, 1078, r=1.8); text(377, 1038, '费用核算')
+    line([(240, 1038), (300, 1038)])
 
-    # ------------------------------------------------------------------ left column
-    # Energy-flow abstraction from the problem statement.
-    box(4, 55, 40, 28, '微网能量流（题面抽象）')
-    for i, (name, detail, color) in enumerate((('电网', 'h · e', 'grid'), ('光伏', 'v · z', 'pv'),
-                                                ('储能', 'c · d', 'soc'), ('负荷', 'ℓ', 'load'))):
-        node(5.2 + 9.8*i, 66, 8.6, 7, name, detail, color)
-    ax.plot([7, 41], [62, 62], color=C['load'], lw=1.2, solid_capstyle='round', zorder=2)
-    line([(9.5, 66), (9.5, 62.4)], color='grid')
-    line([(19.3, 66), (19.3, 62.4)], color='pv')
-    line([(29.1, 62.4), (29.1, 66)], color='soc', both=True)
-    line([(38.9, 62.4), (38.9, 66)], color='load')
-    txt(24, 58.6, 'h + e + v + d = ℓ + c + z')
+    # ------------------------------------------------------------------ problem tags and hand-over
+    for py, name in ((210, '问题2'), (578, '问题3'), (880, '问题4')):
+        R.ellipse(X(590), Y(py), X(62), X(38)); text(590, py, name, 8.5)
+    text(560, 1013, '延用'); line([(485, 1040), (680, 1040)], dashed=True)
 
-    line([(24, 55), (24, 51)])
-    txt(25.7, 53, '电量守恒抽象', ha='left')
-    box(4, 31, 40, 20, '问题一 · 单日确定性调度',
-        ('负荷、光伏与电价均已知', '线性规划，首末储电量相等', '得到费用基准与储能作用'), 'grid')
+    # ------------------------------------------------------------------ main dashed frame (centre)
+    rect(680, 170, 1990, 1130, r=2.4, dashed=True, bold=True, fill=False)
+    # problem 2
+    rect(700, 180, 1130, 290, r=2.4)
+    text(915, 212, '构造净负荷风险轮廓'); text(915, 257, '确定计划购电的风险余量')
+    line([(915, 290), (915, 335)]); text(932, 312, '运用', ha='left')
+    rect(740, 335, 1090, 400, r=2.2); text(915, 367, '分位数风险规划算法')
+    line([(1090, 367), (1440, 367)])
+    R.block_arrow_down(X(915), Y(415), Y(482))
+    # problem 3
+    rect(690, 520, 1140, 585, r=2.2); text(915, 552, '根据新预报确定调整方案')
+    line([(1140, 552), (1440, 552)])
+    line([(900, 585), (900, 680)]); text(915, 612, '引入调整机制', ha='left')
+    line([(900, 640), (1010, 640), (1010, 680)], dashed=True)
+    rect(715, 680, 950, 745, r=2.0); text(832, 712, '外部预报融合')
+    rect(975, 680, 1145, 750, r=2.0, dashed=True); text(1060, 715, '有偿调整')
+    line([(1145, 715), (1185, 715), (1185, 672), (1210, 672)], dashed=True)
+    line([(1185, 715), (1185, 761), (1210, 761)], dashed=True)
+    rect(1210, 632, 1430, 712, r=2.0, dashed=True); text(1320, 653, '上下调代价'); text(1320, 691, '导出调整带')
+    rect(1210, 722, 1430, 806, r=2.0, dashed=True); text(1320, 743, '6/12/18 时'); text(1320, 783, '滚动修改')
+    R.block_arrow_down(X(915), Y(762), Y(828))
+    # problem 4
+    rect(700, 840, 1290, 930, r=2.4)
+    text(995, 864, '实时电价下加入因果价格预测'); text(995, 906, '规划用预测价，结算按实价')
+    line([(1290, 885), (1440, 885)])
+    line([(1060, 750), (1060, 840)], dashed=True); text(1078, 795, '延用', ha='left')
+    line([(1060, 930), (1060, 1025)], dashed=True); text(1078, 978, '延用', ha='left')
+    R.block_arrow_down(X(915), Y(945), Y(1012))
+    rect(700, 1025, 1290, 1110, r=2.4)
+    text(995, 1047, '比较计划固定与有偿调整两类机制'); text(995, 1089, '识别结算变化与预测的影响')
+    line([(1290, 1067), (1440, 1067)])
+    # collector
+    line([(1440, 367), (1440, 1067)])
 
-    line([(24, 31), (24, 26)])
-    txt(25.7, 28.5, '引入', ha='left')
-    box(4, 3, 40, 23, '全问共用的约束与核算',
-        ('储电量 E 保持在 1.2–10.8 MWh', '功率上限，往返效率 0.9', '10 分钟执行与状态反馈',
-         '费用 = 计划 + 调整 + 紧急'), pitch=4.0, top=4.4)
-
-    # ------------------------------------------------------------------ centre column
-    box(52, 60, 58, 22, '问题二 · 计划固定的日前风险规划',
-        ('预测净负荷风险轮廓，取 0.8 分位数', '0 时定全天计划 q⁰，储能实时响应偏差',
-         '缺口紧急补购；费用 = 计划 + 紧急'), 'soc', 9)
-    box(52, 32, 58, 22, '问题三 · 日内有偿调整',
-        ('融合已发布光伏预报与本地预测', '6、12、18 时按上下调代价决定 δ⁺/δ⁻',
-         '费用 = 计划 + 调整 + 紧急'), 'pv', 9)
-    box(52, 4, 58, 22, '问题四 · 实时电价下的规划与结算',
-        ('由历史价格的日内与星期规律因果预测电价', '预测价用于规划，交付时段按实价结算',
-         '4-2 计划固定 · 4-3 有偿调整'), 'price', 9)
-
-    line([(62, 60), (62, 54)])
-    txt(64, 57, '继承风险余量，储电量跨日连续', ha='left')
-    line([(62, 32), (62, 26)])
-    txt(64, 29, '继承调整机制与融合预报', ha='left')
-
-    # Problem 1 feeds problem 2 (cost baseline); shared constraints enter the whole column.
-    line([(44, 41), (47.5, 41), (47.5, 71), (52, 71)])
-    txt(49.7, 56, '费用基准与设备约束', rotation=90)
-    line([(44, 14.5), (52, 14.5)], dashed=True)
-    txt(48, 16.9, '共用')
-
-    # ------------------------------------------------------------------ right column
-    box(118, 63, 38, 16, '四问共同目标',
-        ('最小化购电总费用', '逐时段核验能量平衡与结算'))
-    box(118, 29, 38, 29, '决策闭环（问题二至四）', title_size=8.5)
-    for i, name in enumerate(('当前可用信息', '风险预测与滚动规划', '10 分钟执行与结算')):
-        y = 45.5 - 7.5*i
-        ax.add_patch(FancyBboxPatch((120, y), 27, 5, boxstyle='round,pad=0,rounding_size=0.9',
-                                    fc=C['white'], ec=NEUTRAL_EDGE, lw=.6, zorder=1))
-        txt(133.5, y + 2.5, name)
-    line([(133.5, 45.5), (133.5, 43)])
-    line([(133.5, 38), (133.5, 35.5)])
-    line([(147, 33), (151.5, 33), (151.5, 48), (147, 48)], color='soc')
-    txt(154.3, 40.5, '储电量与观测反馈', rotation=90, color='soc')
-    box(118, 3, 38, 20, '分项对照与机制解释',
-        ('储能·预测·调整权限·价格', '相同条件下逐项替换', '解释费用变化的来源'))
-
-    # Problems 2–4 share one objective; the loop realises the runs that the contrasts compare.
-    line([(110, 71), (118, 71)])
-    line([(110, 43), (114, 43)], arrow=False)
-    line([(110, 15), (114, 15)], arrow=False)
-    ax.plot([114, 114], [15, 71], color=C['load'], lw=.8, zorder=2)
-    line([(137, 58), (137, 63)])
-    txt(139, 60.5, '实际运行费用', ha='left')
-    line([(137, 29), (137, 23)])
-    txt(139, 26, '同条件重放', ha='left')
+    # ------------------------------------------------------------------ objective chain (right)
+    rect(1500, 215, 1760, 290, r=2.0, dashed=True); text(1630, 252, '储能调度决策层')
+    line([(1630, 290), (1630, 365)], dashed=True)
+    rect(1465, 365, 1815, 440, r=2.0, dashed=True); text(1640, 402, '线性规划求最优计划')
+    line([(1630, 440), (1630, 520)], dashed=True)
+    rect(1480, 520, 1840, 610, r=2.2, dashed=True, bold=True)
+    text(1660, 545, '共同目标'); text(1660, 585, '最小化购电总费用')
+    line([(1440, 570), (1480, 570)], dashed=True)
+    arrow([(1630, 610), (1630, 712)])
+    rect(1490, 718, 1770, 818, r=2.0)
+    text(1630, 746, '按信息与权限'); text(1630, 790, '调整决策空间')
+    arrow([(1440, 768), (1490, 768)])
+    arrow([(1770, 768), (1800, 768)])
+    R.diamond(X(1893), Y(768), X(90), X(52)); text(1893, 768, '最优解')
+    arrow([(1635, 928), (1635, 824)])
+    rect(1480, 928, 1850, 1018, r=2.2, dashed=True); text(1665, 973, '分项对照解释费用来源')
+    line([(1440, 973), (1480, 973)], dashed=True)
 
     save_figure(fig, folder, 'framework',
-                '结构示意，无模拟轨迹。左：题面能量流抽象、问题一确定性调度与全问共用的约束和费用核算；'
-                '中：问题二至四依次放开信息与交易权限并继承状态；右：四问共同目标、问题二至四的决策闭环，'
-                '以及相同条件下的分项对照。设备边界取题面。')
+                '手绘风格结构示意，无模拟轨迹。左：问题一由题面抽象能量流与费用性质，建立单日调度模型，'
+                '形成全局使用的电量平衡、设备约束与费用核算；中：问题二至四在同一虚线框内递进，'
+                '风险规划→预报融合与有偿调整→实时电价规划与机制比较；右：各问汇入共同目标，'
+                '按信息与交易权限调整决策空间，得到最优策略，并以分项对照解释费用来源。')
     plt.close(fig)

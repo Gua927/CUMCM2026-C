@@ -110,7 +110,7 @@ def build():
 
 
 def gallery(folder,target):
-    descriptions={"framework":"00 / 建模求解流程：基础与共用、四问递进、目标与闭环（主图）",
+    descriptions={"framework":"00 / 手绘风格建模与优化流程框图：问题一基础、问题二至四递进、共同目标（主图）",
        "q1_dispatch":"01 / 购电、储能动作、储电量与边际成本的同刻对应","q1_comparison":"02 / 费用、电量与光伏消纳",
        "q1_sensitivity":"03 / 设备参数的边际影响","q2_selected_days":"04 / 四个指定日期的因果运行",
        "q2_risk_planning":"05 / 净负荷情景带、风险余量、费用构成与配对区间","q2_sensitivity":"06 / 风险参数的局部敏感性"}
