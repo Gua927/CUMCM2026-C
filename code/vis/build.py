@@ -116,7 +116,7 @@ def gallery(folder,target):
        "q2_risk_planning":"05 / 净负荷情景带、风险余量、费用构成与配对区间","q2_sensitivity":"06 / 风险参数的局部敏感性"}
     if (folder/"q2_boundary.style.json").exists():descriptions["q2_boundary"]="07 / 跨日资源配置与充电时序"
     if (folder/"q3_selected_days.style.json").exists():
-        descriptions["q3_selected_days"]="08 / 四个指定日期的计划、最终合同与紧急购电"
+        descriptions["q3_selected_days"]="08 / 四个指定日期的0时计划量、最终计划量与紧急购电"
         descriptions["q3_information_value"]="09 / 信息价值阶梯、时点边际价值、调整足迹与预报误差"
     if (folder/"q4_prices.style.json").exists():
         descriptions["q4_prices"]="10 / 实时电价的星期×时段结构、净负荷驱动与因果预测误差"

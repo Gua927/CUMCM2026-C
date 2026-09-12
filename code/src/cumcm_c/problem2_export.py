@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 
 from .paths import PATHS
 from .data import time_minutes
+from .calendar_export import purchase_slot, annotate_calendar, audit_calendar_comments
 from .models.problem2_evaluation import daily_summary, emergency_intervals
 
 
@@ -24,7 +25,7 @@ def write_workbook(frame,target):
         date=str(pd.Timestamp(sheet.cell(row,1).value).date());day=days[date]
         for col in range(2,146):
             label=sheet.cell(1,col).value
-            minute=time_minutes(label.split("-")[0])%1440
+            minute=purchase_slot(label)*10
             item=day.iloc[minute//10]
             sheet.cell(row,col,float(item.planned_grid_kwh))
             if row==2:mapping.append({"column":col,"template_label":label,"canonical_interval":item.interval,"slot":minute//10})
@@ -59,8 +60,9 @@ def write_workbook(frame,target):
             for c in range(1,4):sheet.cell(row,c)._style=copy(styles[c-1])
             if k==0:sheet.cell(row,1,pd.Timestamp(date).to_pydatetime())
             sheet.cell(row,2,label);sheet.cell(row,3,float(amount));row+=1
+    mapping=annotate_calendar(wb,frame,["计划购电量"])
     wb.save(target);wb.close()
-    return pd.DataFrame(mapping)
+    return mapping
 
 
 def validate_workbook(target,frame,tolerance=2e-5):
@@ -70,6 +72,8 @@ def validate_workbook(target,frame,tolerance=2e-5):
     def same(a,b):
         if not isinstance(a,(int,float)) or abs(a-float(b))>tolerance:raise ValueError(f"Workbook mismatch: {a} vs {b}")
     try:
+        if "time_convention" in frame:
+            audit_calendar_comments(wb,["计划购电量"])
         if wb.sheetnames!=original.sheetnames:raise ValueError("Sheet names changed")
         for name in wb.sheetnames:
             a,b=wb[name],original[name]

@@ -21,13 +21,13 @@ from .models.problem3_evaluation import (trajectory, audit, daily_summary, summa
 from .models.problem4 import PriceModel, METHODS, price_errors
 from .problem1_workflow import sha256, save_json, save_csv
 from .problem2_workflow import paired_bootstrap
-from .problem3_workflow import Prepared, make_policy, plans_frame, adjustments_frame, audit_adjustment_reconstruction, horizon_diagnostics
+from .problem3_workflow import Prepared, make_policy, plans_frame, adjustments_frame, audit_adjustment_reconstruction, horizon_diagnostics, legacy_comparable
 
 
 class Prepared4(Prepared):
     def __init__(self, config=None):
         super().__init__(config)
-        price_dates, self.prices4 = problem4_prices()
+        price_dates, self.prices4 = problem4_prices(self.config["problem2"]["time_convention"])
         if not price_dates.equals(self.dates):
             raise ValueError("Attachment 4 dates differ from attachment 2")
         self.settings4 = self.config["problem4"]
@@ -74,6 +74,14 @@ def legacy_reproduction4(frame, settings, config):
     reference = settings.get("legacy_reference_run")
     if not reference or not (PATHS.root/reference/"strategies/q43_forecast.csv").exists():
         return {"passed": None, "reference": reference, "note": "frozen Q4 archive not available in this checkout"}
+    comparable, differences = legacy_comparable(reference, config)
+    old_config = json.loads((PATHS.root/reference/"config.json").read_text())
+    for k in ("price_method", "weekday_weeks", "regression_window_days", "intraday_correction", "price_floor_yuan_per_kwh"):
+        if old_config.get("problem4", {}).get(k) != config.get("problem4", {}).get(k):
+            comparable = False; differences[f"problem4.{k}"] = {"archive": old_config.get("problem4", {}).get(k), "current": config.get("problem4", {}).get(k)}
+    if not comparable:
+        return {"passed": None, "reference": reference, "note": "frozen Q4 archive used a different configuration; not a reproduction target",
+                "differences": differences}
     old = pd.read_csv(PATHS.root/reference/"strategies/q43_forecast.csv")
     if len(old) != len(frame) or not (old.date.to_numpy() == frame.date.to_numpy()).all():
         raise ValueError("Frozen Q4 archive covers a different horizon")
@@ -108,7 +116,8 @@ def backtest(prep, policy, model, start, end, initial=None, collect=True, record
             frames.append(trajectory(prep.dates[day], prep.actual[day], result, result["settle_prices"], prep.pricing, policy,
                                      {"adjustment_slots": release_slots, "training_last_date": cutoff, "external_weight": policy.weight,
                                       "freeze_forecast": policy.freeze_forecast, "cross_day_release": policy.cross_day_release,
-                                      "matched_bias": policy.matched_bias, "price_method": model.method, "price_mode": model.mode}))
+                                      "matched_bias": policy.matched_bias, "price_method": model.method, "price_mode": model.mode,
+                                      "time_convention":prep.config["problem2"]["time_convention"]}))
         if plans is not None:
             plans[-1]["prices"] = result["plan_prices"]; plans[-1]["advisory_prices"] = np.asarray(model.plan(day), float)[144:]
         energy = result["energy"]
@@ -256,7 +265,7 @@ def run():
         from .problem4_reporting import write_report
         write_report(folder, comparison, errors, check, ci, references, config, audits)
         from vis.problem4 import q4_figures
-        q4_figures(trajectories, comparison, price_table, errors, references, prep.prices, folder/"figures")
+        q4_figures(trajectories, comparison, price_table, errors, references, prep.prices, folder/"figures", paired=ci)
         save_json(folder/"validation.json", audits)
         for source in (PATHS.root/"code").rglob("*"):
             if source.is_file() and source.suffix in (".py", ".json", ".txt", ".md") and "__pycache__" not in str(source):

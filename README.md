@@ -12,7 +12,9 @@ Agent 开始工作前应先阅读 [[Project/CUMCM 2026/Agent.md]]。
 
 第三问已实现：`make solve-q3`，独立核验 `make check-q3`。查看[结果与方法](output/problem3-report.md)、[官方工作簿](output/results/result3.xlsx)及[版本索引](output/runs/problem3/latest.json)。附件3整点预报按对齐检验锚定并与本地预测等权融合；0:00沿用第二问48小时规划，6/12/18时按最新预报、实际SOC与0:00计划求解有偿调整LP（上调1.5倍、取消退回50%，调整带端点[0.7,0.9]由费用比例导出，带内价值为代理假设）；最新版本的次日覆盖部分进入次日辅助段，日内偏差修正的残差与历史同构（第一轮审计 R02/R07，2026-09-12，处理记录见 [review-1st-response](output/review-1st-response.md)）；17种策略全年回放，其中冻结旧版信息链与两个单项变体同参并列。
 
-第二问已改为B方案：`make solve-q2`，独立核验 `make check-q2`。查看[结果与方法](output/problem2-report.md)、[逐日交互图](output/problem2-dashboard.html)、[官方工作簿](output/results/result2.xlsx)及[版本索引](output/runs/problem2/latest.json)。每日同一信息集预测48小时，仅提交当天144时段合同，实际SOC连续；一月24组合选型、二月至十二月因果回放。保留旧版与A、72小时、远端残值对照，不预设更长视窗必然节费。沿用已确认的日循环时标。
+第二问已改为B方案：`make solve-q2`，独立核验 `make check-q2`。查看[结果与方法](output/problem2-report.md)、[逐日交互图](output/problem2-dashboard.html)、[官方工作簿](output/results/result2.xlsx)及[版本索引](output/runs/problem2/latest.json)。每日同一信息集预测48小时（季节滞后、趋势、逐时段岭回归三种因果预测器候选），仅确定当天144时段计划购电量，实际SOC连续；一月36组合选型、二月至十二月因果回放。保留旧版与A、72小时、远端残值对照，不预设更长视窗必然节费。附件2/4按连续日历时标解释（前一日期行的0:00+1为当日零点），官方模板末列保留原标签并加批注。
+
+储能效率口径（2026-09-12）：题面“充放电效率90%”按 GB/T 36549、GB/T 36276、GB/T 36558 的往返能量效率理解，取充、放电效率各为 sqrt(0.9)；双侧各0.9只作敏感性对照。四问、图表与论文均在该口径下重算。`make audit-causality` 对已发布三问归档逐日做“毒化未来数据后重建计划”的因果审计，报告见 [causality-audit](output/causality-audit.md)。
 
 > 比赛期间不得将仓库公开，也不得在公开平台发布或讨论赛题。本地 Git 仅用于本队版本管理。
 

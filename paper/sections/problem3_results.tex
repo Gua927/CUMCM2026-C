@@ -19,7 +19,7 @@
   \alpha^{-}=1-\frac{0.5}{5}=0.9.
   \label{eq:q3-band}
 \end{equation}
-给定日前合同，在无储能单时段问题中，合同低于更新需求的0.7分位数时上调，高于0.9分位数时取消，带内保持不动。两个端点对应调整时的边际费用；0时沿用0.8分位数是继承问题二的代理设定，未计入后续调整机会的期权价值。
+给定0时计划购电量，在无储能单时段问题中，该计划量低于更新需求的0.7分位数时上调，高于0.9分位数时下调，带内保持不动。两个端点对应调整时的边际费用；0时沿用0.8分位数是继承问题二的代理设定，未计入后续调整机会的期权价值。
 
 设调整时刻为$k$，当日剩余时段为$t=k,\dots,143$，次日辅助段为$t=144,\dots,287$。记$\widetilde n_t^{-}=\widetilde n_t(\alpha^{+})$、$\widetilde n_t^{+}=\widetilde n_t(\alpha^{-})$，调整LP为
 \begin{equation}
@@ -35,17 +35,17 @@
 \end{equation}
 其中$\delta_t^+,\delta_t^-$为上调与取消电量，$b_t$为调整带内被覆盖的需求，其单位价值取$p_t$，介于保留计划的$0.5p_t$与增购的$1.5p_t$之间，故在无储能单时段情形下恰好复现调整带规则。常数价值是额外的代理假设：有储能时改用带内其他常数会改变跨时段配置，它不能视为真实补购损失的等价表达。
 
-初态取实际$E_k$，远端固定为次日24时且终端值为零，三个调整时点的剩余视窗分别为42、36、30小时。仅提交当天剩余合同，次日变量不签约、不结算。HiGHS求解后核验对偶证书，并按问题二的方法消除同时充放电。
+初态取实际$E_k$，远端固定为次日24时且终端值为零，三个调整时点的剩余视窗分别为42、36、30小时。仅更新当天剩余时段的计划购电量，次日变量不作为正式计划，也不结算。HiGHS求解后核验对偶证书，并按问题二的方法消除同时充放电。
 
-每日0时提交当天合同，6、12、18时更新，逐时执行沿用式~\eqref{eq:q2-greedy}的贪心缓冲器。三个时点、退款口径、调整带及融合权重均在费用回放前固定。一月15日至31日的影子检验中，导出带、单一0.8分位数、宽带及不调整的修正费用分别为\QThreeCheckBand、\QThreeCheckSymmetric、\QThreeCheckWide、\QThreeCheckPlanOnly 元；该检验用于检查规则表现，不据此另行选型。
+每日0时确定当天计划购电量，6、12、18时更新尚未执行的部分，逐时执行沿用式~\eqref{eq:q2-greedy}的贪心缓冲器。三个时点、退款口径、调整带及融合权重均在费用回放前固定。一月15日至31日的影子检验中，导出带、单一0.8分位数、宽带及不调整的修正费用分别为\QThreeCheckBand、\QThreeCheckSymmetric、\QThreeCheckWide、\QThreeCheckPlanOnly 元；该检验用于检查规则表现，不据此另行选型。
 
 \subsection{全年结果与指定日期}
 
-二月至十二月，主策略的计划费为\QThreePlanCost 万元，调整结算为\QThreeAdjustCost 万元（上调\QThreeUpCost 万元，取消退回\QThreeDownCost 万元），紧急费为\QThreeEmergencyCost 万元，现金总费用为\QThreeTotalCost 万元。全年上调\QThreeUpEnergy\ kWh、取消\QThreeDownEnergy\ kWh，在\QThreeAdjustedDays 天的\QThreeAdjustedSlots 个时段改变了合同；紧急购电\QThreeEmergencyEnergy\ kWh，发生于\QThreeEmergencyDays 天，日紧急费用经验CVaR95为\QThreeCvar 元。期末电量\QThreeTerminal\ kWh，统一残值修正费用\QThreeAdjusted 元。
+二月至十二月，主策略的计划费为\QThreePlanCost 万元，调整结算为\QThreeAdjustCost 万元（上调\QThreeUpCost 万元，下调退回\QThreeDownCost 万元），紧急费为\QThreeEmergencyCost 万元，现金总费用为\QThreeTotalCost 万元。全年上调\QThreeUpEnergy\ kWh、下调\QThreeDownEnergy\ kWh，在\QThreeAdjustedDays 天的\QThreeAdjustedSlots 个时段改变了计划购电量；紧急购电\QThreeEmergencyEnergy\ kWh，发生于\QThreeEmergencyDays 天，日紧急费用经验CVaR95为\QThreeCvar 元。期末电量\QThreeTerminal\ kWh，统一残值修正费用\QThreeAdjusted 元。
 
 相对同一融合预报、仅$0{:}00$计划的策略，现金节省\QThreeSavingPlanOnly 元，节费率\QThreeSavingPlanOnlyPercent\%，紧急购电由\QThreePlanOnlyEmergency\ kWh降至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreePlanOnlyCvar 元降至\QThreeCvar 元；配对七日块重采样的日均节省95\%区间为$[\QThreeCIPlanOnlyLow,\QThreeCIPlanOnlyHigh]$元，不含零。相对问题二已发布策略（不用附件三、不调整），节省\QThreeSavingQTwo 元，节费率\QThreeSavingQTwoPercent\%。取消量远大于上调量，说明$0{:}00$计划在$0.8$分位数上保留的余量在信息更新后大部分被有偿收回，而上调集中在少数出现缺口的时段。
 
-表~\ref{tab:q3-purchase}至表~\ref{tab:q3-emergency}依次给出0时计划与最终合同、储能实际运行及紧急购电；全天费用包含调整与紧急费。附录图~\ref{fig:q3-days}显示，中午取消高估合同、18时依据实际储电量和负荷上调，是两种主要的调整方式。
+表~\ref{tab:q3-purchase}至表~\ref{tab:q3-emergency}依次给出0时计划量与最终计划购电量、储能实际运行及紧急购电；全天费用包含调整与紧急费。附录图~\ref{fig:q3-days}显示，中午下调高估的计划量、18时依据实际储电量和负荷上调，是两种主要的调整方式。
 
 \begingroup
 \renewcommand{\arraystretch}{0.9}
@@ -63,13 +63,13 @@
    -\mathbb E[C_{\rm update}^{\rm cash}].
   \label{eq:voi}
 \end{equation}
-费用已包含调整支出，不再重复扣除。表~\ref{tab:q3-comparison}与图~\ref{fig:q3-value}a依次构造三个差值：问题二策略改为“融合预报、仅计划”，节省\QThreeValueExternalPlan 元；再开放三时点调整但冻结光伏预报，节省\QThreeValueAdjustNoInfo 元；最后使用最新预报，再节省\QThreeValueFreshInfo 元。第二步同时引入合同权限与实际储电量、负荷偏差反馈，现有对照不再进一步分离二者。
+费用已包含调整支出，不再重复扣除。表~\ref{tab:q3-comparison}与图~\ref{fig:q3-value}a依次构造三个差值：问题二策略改为“融合预报、仅计划”，节省\QThreeValueExternalPlan 元；再开放三时点调整但冻结光伏预报，节省\QThreeValueAdjustNoInfo 元；最后使用最新预报，再节省\QThreeValueFreshInfo 元。第二步同时引入计划调整权限与实际储电量、负荷偏差反馈，现有对照不再进一步分离二者。
 
 最新预报增量的日均节费95\%区间为$[\QThreeCIStaleLow,\QThreeCIStaleHigh]$元，包含零。结合图~\ref{fig:q3-value}c、d可见，预报改善主要发生在白天，部分偏差可由储能吸收；费用较高的晚间缺口更依赖实际电量与负荷状态。由此，现有证据支持调整权限与状态反馈是主要收益来源，尚不足以确认日内光伏预报的独立节费作用。
 
 \input{../output/tables/q3_comparison.tex}
 
-时点消融进一步表明，三个更新机会的作用并不相同（图~\ref{fig:q3-value}b）。去掉6、12、18时调整，全年费用分别增加\QThreeMarginalSix、\QThreeMarginalTwelve、\QThreeMarginalEighteen 元；仅保留单一时点时，节省分别为\QThreeSingleSix、\QThreeSingleTwelve、\QThreeSingleEighteen 元。18时可在晚高峰前依据实际状态上调，以1.5倍价格替代部分5倍紧急购电；12时主要用于取消高估合同；6时作用最小，其日均差区间$[\QThreeCIDropSixLow,\QThreeCIDropSixHigh]$元包含零。
+时点消融进一步表明，三个更新机会的作用并不相同（图~\ref{fig:q3-value}b）。去掉6、12、18时调整，全年费用分别增加\QThreeMarginalSix、\QThreeMarginalTwelve、\QThreeMarginalEighteen 元；仅保留单一时点时，节省分别为\QThreeSingleSix、\QThreeSingleTwelve、\QThreeSingleEighteen 元。18时可在晚高峰前依据实际状态上调，以1.5倍价格替代部分5倍紧急购电；12时主要用于下调高估的计划购电量；6时作用最小，其日均差区间$[\QThreeCIDropSixLow,\QThreeCIDropSixHigh]$元包含零。
 
 因此，对题目“是否需要引入其他时刻预报”的回答是：在本年度四个预报版本与相同调整规则下，若只保留一个日内更新机会，应选18时；保留两个时以12、18时组合为优先；主策略保留全部三个时点。该排序反映预报、交易权限与状态反馈的共同作用，不能直接用于评价尚未提供的新预报服务。
 
@@ -79,7 +79,7 @@
  \label{fig:q3-value}
 \end{figure}
 
-仅用附件三预报的三时点策略费用为\QThreeExternalOnlyCost 元，比融合主策略高\QThreeExternalOnlyDiff 元；不用附件三但允许调整时费用为\QThreeOwnAdjustCost 元。可见外部预报的收益依赖融合方式，而合同调整本身保留了大部分收益。问题二策略在问题三账本下逐时复现，确认两问费用口径衔接一致。
+仅用附件三预报的三时点策略费用为\QThreeExternalOnlyCost 元，比融合主策略高\QThreeExternalOnlyDiff 元；不用附件三但允许调整时费用为\QThreeOwnAdjustCost 元。可见外部预报的收益依赖融合方式，而计划调整本身保留了大部分收益。问题二策略按问题三的费用规则逐时复现，确认两问费用口径衔接一致。
 
 \FloatBarrier
 \subsection{结算与代理模型的适用边界}
@@ -92,6 +92,6 @@
 \paragraph{信息链同参检验}
 \label{sec:q3-chain}
 
-冻结旧版、仅跨日预报、仅同构残差与主策略的比较见附录表~\ref{tab:q3-information-chain}。主策略较旧版少付\QThreeLegacyDiff 元，日均差区间$[\QThreeCILegacyLow,\QThreeCILegacyHigh]$元包含零；差额几乎全部来自同构残差，主策略与仅同构变体仅相差\QThreeMatchedBiasDiff 元。同构重建使18时调整带覆盖率更接近名义的70\%/90\%，但紧急购电由\QThreeLegacyEmergency 增至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreeLegacyCvar 增至\QThreeCvar 元。信息链修正的依据是声明与实现一致，费用与风险表现分别报告。
+冻结旧版、仅跨日预报、仅同构残差与主策略的比较见附录表~\ref{tab:q3-information-chain}。主策略较旧版少付\QThreeLegacyDiff 元，日均差区间$[\QThreeCILegacyLow,\QThreeCILegacyHigh]$元，下界仅略高于零；差额几乎全部来自同构残差，主策略与仅同构变体仅相差\QThreeMatchedBiasDiff 元。同构重建使18时调整带覆盖率更接近名义的70\%/90\%，但紧急购电由\QThreeLegacyEmergency 增至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreeLegacyCvar 增至\QThreeCvar 元。信息链修正的依据是声明与实现一致，费用与风险表现分别报告。
 
-全部\QThreeStrategyCount 条全年轨迹通过物理、合同版本与分项费用核验，最大残差不超过$2\times10^{-5}$ kWh。辅助段满足物理约束且未提前签约，其预测可由当时信息重建；改写未来观测及未发布版本不影响此前决策。工作簿回读一致，详见附录\ref{app:validation-details}。
+全部\QThreeStrategyCount 条全年轨迹通过物理约束、计划版本与分项费用核验，最大残差不超过$2\times10^{-5}$ kWh。辅助段满足物理约束且不形成次日正式计划，其预测可由当时信息重建；改写未来观测及未发布版本不影响此前决策。工作簿回读一致，详见附录\ref{app:validation-details}。

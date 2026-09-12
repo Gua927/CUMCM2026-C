@@ -34,8 +34,12 @@ def main():
         results["issued_plans"]=audit_issued_plans(pd.read_csv(folder/"issued_plans.csv"),frame,b,config["time_step_minutes"]/60,h)
         for source in (folder/"strategies").glob("*_decisions.json"):
             results[source.stem]=audit_decisions(json.loads(source.read_text()),h)
+        legacy_source=folder/"boundary/legacy_source.json"
+        legacy_battery=Battery(**json.loads(legacy_source.read_text())["legacy_battery"]) if legacy_source.exists() and "legacy_battery" in json.loads(legacy_source.read_text()) else b
         for source in (folder/"boundary").glob("*.csv"):
-            results[source.stem]=audit(pd.read_csv(source),b,config["time_step_minutes"]/60,5,initial=b.initial_soc_kwh)
+            # The frozen archive is audited under its own archived battery parameters.
+            battery=legacy_battery if source.stem=="legacy_frozen" else b
+            results[source.stem]=audit(pd.read_csv(source),battery,config["time_step_minutes"]/60,5,initial=battery.initial_soc_kwh)
         for source in (folder/"boundary").glob("*_decisions.json"):
             logs=json.loads(source.read_text());results[source.stem]=audit_decisions(logs,logs[0]["planning_horizon_days"])
         from cumcm_c.data import problem2_daily

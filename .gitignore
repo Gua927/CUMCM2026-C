@@ -24,6 +24,7 @@ output/**
 !output/
 !output/README.md
 !output/review-1st-response.md
+!output/causality-audit.md
 !output/**/
 !output/**/.gitkeep
 

@@ -12,7 +12,7 @@ from .style import C, CMAP, apply_paper_style, figure_size, panel, clean_axis, t
 METHOD_LABELS = {"fixed": "附件 1 轮廓", "lag7": "上周同日", "weekday": "两周同日", "regression": "净负荷回归", "combined": "融合（主模型）"}
 WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 # Cost ladders: (row label, comparison strategy or reference key, paired key whose saving links this row to the previous one)
-LADDERS = (("4-2 固定合同（第二问机制）", (("固定电价（第二问）", "ref:q2", None), ("附件 1 轮廓规划", "q42_fixed_profile", None),
+LADDERS = (("4-2 计划固定（第二问机制）", (("固定电价（第二问）", "ref:q2", None), ("附件 1 轮廓规划", "q42_fixed_profile", None),
                                   ("因果预测（主策略）", "q42_forecast", "q42_fixed_profile"), ("价格预知（启发式对照）", "q42_perfect_price", "q42_perfect_price"))),
            ("4-3 有偿调整（第三问机制）", (("固定电价（第三问）", "ref:q3", None), ("附件 1 轮廓规划", "q43_fixed_profile", None),
                                   ("因果预测（主策略）", "q43_forecast", "q43_fixed_profile"), ("价格预知（启发式对照）", "q43_perfect_price", "q43_perfect_price"))))

@@ -266,9 +266,13 @@ class InformationChainDataTests(unittest.TestCase):
         self.assertAlmostEqual(result["cash"], self.prep.prices@(result["plan"]+1.5*up-0.5*down+5*result["executed"][:, 2]), places=6)
 
     def test_legacy_flags_reproduce_the_frozen_archive_when_available(self):
+        from cumcm_c.problem3_workflow import legacy_comparable
         reference = ROOT/self.settings.get("legacy_reference_run", "")/"strategies/adjust_all.csv"
         if not reference.exists():
             self.skipTest("frozen archive not present in this checkout")
+        comparable, differences = legacy_comparable(self.settings["legacy_reference_run"], self.prep.config)
+        if not comparable:
+            self.skipTest(f"frozen archive used a different configuration: {sorted(differences)}")
         old = pd.read_csv(reference)
         for date in self.prep.config["report_dates"]:
             day = self.prep.dates.get_loc(date); rows = old[old.date == date]

@@ -118,7 +118,7 @@ def q2_figures(main,comparison,trajectories,sensitivity,dates,folder,battery=Non
     for row,date in enumerate(dates):
         day=main[main.date==date];ax=axes[row,0]
         ax.stairs((day.load_kwh-day.pv_kwh).to_numpy()*6/1000,edges,color=C["load"],ls="--",lw=.9,baseline=None,label="实际净负荷")
-        ax.stairs(day.planned_grid_kwh.to_numpy()*6/1000,edges,color=C["grid"],baseline=None,label="日前合同")
+        ax.stairs(day.planned_grid_kwh.to_numpy()*6/1000,edges,color=C["grid"],baseline=None,label="0时计划购电量")
         ax.stairs(day.emergency_grid_kwh.to_numpy()*6/1000,edges,fill=True,color=C["emergency"],alpha=.65,hatch="///",label="紧急购电")
         ax.axhline(0,color=C["muted"],lw=.6)
         ax.set_ylim(*limits);ax.set_ylabel("功率 (MW)");panel(ax,chr(97+row*2),date)
@@ -167,13 +167,13 @@ def q2_risk_planning(main,comparison,paired,scenarios,dates,folder):
         ax.fill_between(edges,q(.25),q(.75),step="post",color=tint(C["baseline"],.45),lw=0,label="情景 25%–75%")
         ax.stairs(day.risk_net_kwh.to_numpy()*6/1000,edges,color=C["muted"],lw=1.2,baseline=None,label="0.8 分位数风险轮廓")
         ax.stairs(actual,edges,color=C["load"],ls="--",lw=.9,baseline=None,label="实际净负荷")
-        ax.stairs(day.planned_grid_kwh.to_numpy()*6/1000,edges,color=C["grid"],lw=1.3,baseline=None,label="日前合同")
+        ax.stairs(day.planned_grid_kwh.to_numpy()*6/1000,edges,color=C["grid"],lw=1.3,baseline=None,label="0时计划购电量")
         ax.stairs(day.emergency_grid_kwh.to_numpy()*6/1000,edges,fill=True,color=C["emergency"],alpha=.7,hatch="///",label="紧急购电")
         ax.axhline(0,color=C["muted"],lw=.6)
         top=max(float(q(.95).max()),float(actual.max()),float(day.planned_grid_kwh.max()*6/1000))
         ax.set_ylim(min(float(q(.05).min()),float(actual.min()),0)*1.15,top*1.42)
         inside(ax.legend(ncol=3,loc="upper left",bbox_to_anchor=(.01,.99)))
-        panel(ax,"a",f"风险规划的机制 · {focus}：合同覆盖到情景的 0.8 分位数，缺口才触发紧急购电")
+        panel(ax,"a",f"风险规划的机制 · {focus}：计划量取情景的 0.8 分位数，缺口才触发紧急购电")
     ax.set_ylabel("功率 (MW)");ax.set_xlabel("时刻 (h)");time_axis(ax);ax.grid(False)
     ax=fig.add_subplot(grid[1,0]);y=np.arange(len(comparison));normal=comparison.planned_cost_yuan.to_numpy()/1e4
     emergency=comparison.emergency_cost_yuan.to_numpy()/1e4

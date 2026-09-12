@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 
 from .paths import PATHS
 from .data import time_minutes
+from .calendar_export import purchase_slot, annotate_calendar, audit_calendar_comments
 from .models.problem3_evaluation import daily_summary, emergency_intervals
 
 # Sheet -> (per-slot energy column, daily fee column). The plan sheet carries the 0:00 plan
@@ -30,7 +31,7 @@ def write_workbook(frame, target):
         for row in range(2, sheet.max_row+1):
             date = str(pd.Timestamp(sheet.cell(row, 1).value).date()); day = days[date]
             for col in range(2, 146):
-                label = sheet.cell(1, col).value; minute = time_minutes(label.split("-")[0]) % 1440
+                label = sheet.cell(1, col).value; minute = purchase_slot(label)*10
                 item = day.iloc[minute//10]; sheet.cell(row, col, float(item[energy]))
                 if row == 2 and title == "计划购电量":
                     mapping.append({"column": col, "template_label": label, "canonical_interval": item.interval, "slot": minute//10})
@@ -62,8 +63,9 @@ def write_workbook(frame, target):
             if k == 0:
                 sheet.cell(row, 1, pd.Timestamp(date).to_pydatetime())
             sheet.cell(row, 2, label); sheet.cell(row, 3, float(amount)); row += 1
+    mapping = annotate_calendar(wb, frame, list(PURCHASE_SHEETS))
     wb.save(target); wb.close()
-    return pd.DataFrame(mapping)
+    return mapping
 
 
 def validate_workbook(target, frame, tolerance=2e-5):
@@ -75,6 +77,8 @@ def validate_workbook(target, frame, tolerance=2e-5):
         if not isinstance(a, (int, float)) or abs(a-float(b)) > tolerance:
             raise ValueError(f"Workbook mismatch: {a} vs {b}")
     try:
+        if "time_convention" in frame:
+            audit_calendar_comments(wb, list(PURCHASE_SHEETS))
         if wb.sheetnames != original.sheetnames:
             raise ValueError("Sheet names changed")
         for name in wb.sheetnames:
@@ -154,7 +158,7 @@ def tex_tables(frame, comparison, emergencies, dates, target, diagnostics, ci, c
     def write(name, lines):
         (target/name).write_text("\n".join(lines)+"\n", encoding="utf-8")
     daily = daily_summary(frame).set_index("date")
-    lines = [r"\begin{table}[htbp]\centering\small", r"\caption{问题三指定日期购电量（表1格式；每格为0:00计划量/最终合同量，单位：kWh）}",
+    lines = [r"\begin{table}[htbp]\centering\small", r"\caption{问题三指定日期购电量（表1格式；每格为0:00计划量/最终计划量，单位：kWh）}",
              r"\label{tab:q3-purchase}\begin{tabular}{lrlrlr}\toprule", r"时间段 & 计划/调整 & 时间段 & 计划/调整 & 时间段 & 计划/调整 \\"]
     for date in dates:
         day = frame[frame.date == date].reset_index(drop=True); stats = daily.loc[date]

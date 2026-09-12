@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 
 from .paths import PATHS
 from .data import time_minutes
+from .calendar_export import purchase_slot, annotate_calendar, audit_calendar_comments
 from .models.problem3_evaluation import daily_summary, emergency_intervals
 
 # workbook -> (template, {sheet: (per-slot energy column, daily fee column)}, strategy)
@@ -32,7 +33,7 @@ def write_workbook(frame, target, template, sheets):
         for row in range(2, sheet.max_row+1):
             date = str(pd.Timestamp(sheet.cell(row, 1).value).date()); day = days[date]
             for col in range(2, 146):
-                label = sheet.cell(1, col).value; minute = time_minutes(label.split("-")[0]) % 1440
+                label = sheet.cell(1, col).value; minute = purchase_slot(label)*10
                 item = day.iloc[minute//10]; sheet.cell(row, col, float(item[energy]))
                 if row == 2 and not mapping or (row == 2 and mapping and mapping[-1]["sheet"] == title and len(mapping) < 144):
                     mapping.append({"sheet": title, "column": col, "template_label": label, "canonical_interval": item.interval, "slot": minute//10})
@@ -64,8 +65,9 @@ def write_workbook(frame, target, template, sheets):
             if k == 0:
                 sheet.cell(row, 1, pd.Timestamp(date).to_pydatetime())
             sheet.cell(row, 2, label); sheet.cell(row, 3, float(amount)); row += 1
+    mapping = annotate_calendar(wb, frame, list(sheets))
     wb.save(target); wb.close()
-    return pd.DataFrame(mapping)
+    return mapping
 
 
 def validate_workbook(target, frame, template, sheets, tolerance=2e-5):
@@ -77,6 +79,8 @@ def validate_workbook(target, frame, template, sheets, tolerance=2e-5):
         if not isinstance(a, (int, float)) or abs(a-float(b)) > tolerance:
             raise ValueError(f"Workbook mismatch: {a} vs {b}")
     try:
+        if "time_convention" in frame:
+            audit_calendar_comments(wb, list(sheets))
         if wb.sheetnames != original.sheetnames:
             raise ValueError("Sheet names changed")
         for name in wb.sheetnames:
@@ -208,7 +212,7 @@ def tex_tables(frames, comparison, dates, target, price_table, errors, ci, check
     write("q42_purchase.tex", _purchase_table(f42, dates, "tab:q42-purchase", "波动电价下问题二指定日期计划购电量与实际费用（表1格式，按实时价结算）", False))
     write("q42_storage.tex", _storage_table(f42, dates, "tab:q42-storage", "波动电价下问题二指定日期充放电量及日初日末储电量（表2格式，kWh）"))
     write("q42_emergency.tex", _emergency_table(emergency_intervals(f42), dates, "tab:q42-emergency", "波动电价下问题二指定日期紧急购电区间及电量（表3格式）"))
-    write("q43_purchase.tex", _purchase_table(f43, dates, "tab:q43-purchase", "波动电价下问题三指定日期购电量（表1格式；每格为0:00计划量/最终合同量，kWh）", True))
+    write("q43_purchase.tex", _purchase_table(f43, dates, "tab:q43-purchase", "波动电价下问题三指定日期购电量（表1格式；每格为0:00计划量/最终计划量，kWh）", True))
     write("q43_storage.tex", _storage_table(f43, dates, "tab:q43-storage", "波动电价下问题三指定日期充放电量及日初日末储电量（表2格式，kWh）"))
     write("q43_emergency.tex", _emergency_table(emergency_intervals(f43), dates, "tab:q43-emergency", "波动电价下问题三指定日期最终紧急购电区间及电量（表3格式）"))
     lines = [r"\begin{table}[htbp]\centering\small", r"\setlength{\tabcolsep}{4pt}",

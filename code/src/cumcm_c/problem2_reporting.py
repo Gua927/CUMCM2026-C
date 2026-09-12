@@ -9,7 +9,9 @@ BOUNDARY_LABELS={"B48":"B：48小时","matched24":"24小时同参","A24":"A：�
 def write_boundary_tables(folder,best,comparison,boundary,diagnostics,ci,sensitivity):
     m=comparison.iloc[0];base=comparison.set_index("strategy").loc["no_storage"]
     point=comparison.set_index("strategy").loc["point_policy"]
-    b=boundary.set_index("variant");old=b.loc["legacy_frozen"];new=b.loc["B48"]
+    # Mechanism macros compare with the matched-parameter 24 h replay; the frozen archive keeps its own
+    # physical parameters and is reported separately (QBLegacy*).
+    b=boundary.set_index("variant");old=b.loc["matched24"];legacy=b.loc["legacy_frozen"];new=b.loc["B48"]
     trajectory=pd.read_csv(folder/"strategies/risk_policy.csv")
     first=trajectory[trajectory.date==trajectory.date.iloc[0]].soc_end_kwh.iloc[-1]
     params=json.loads((folder/"config.json").read_text());battery=params["battery"]
@@ -17,12 +19,16 @@ def write_boundary_tables(folder,best,comparison,boundary,diagnostics,ci,sensiti
     nu=prices.min()/battery["charge_efficiency"]
     numbers={"QBQuantile":f"{best['quantile']:.2f}","QBValidation":f"{best['validation_adjusted_cost_yuan']:.2f}",
         "QBTies":str(best["tie_count"]),"QBController":{"greedy":"贪心缓冲","reference":"参考SOC跟踪","mpc":"滚动控制"}[best["controller"]],
-        "QBForecast":{"trend":"趋势预测","seasonal":"季节滞后预测"}[best["forecast_mode"]],
+        "QBForecast":{"trend":"趋势预测","seasonal":"季节滞后预测","regression":"回归预测"}[best["forecast_mode"]],
         "QBAdjusted":f"{m.value_adjusted_cost_yuan:.2f}","QBPointSaving":f"{(1-m.cost_yuan/point.cost_yuan)*100:.2f}",
         "QBCvar":f"{m.emergency_cost_cvar95_yuan:.2f}","QBBaseCvar":f"{base.emergency_cost_cvar95_yuan:.2f}",
         "QBEmergencyDays":str(int(m.emergency_days)),"QBEmergencySlots":str(int(m.emergency_slots)),
         "QBFirstEnd":f"{first:.2f}","QBInitialUse":f"{battery['initial_soc_kwh']-first:.2f}","QBCommonNu":f"{nu:.6f}",
         "QBOldCost":f"{old.cost_yuan:.2f}","QBOldDifference":f"{old.cost_yuan-m.cost_yuan:.2f}",
+        "QBLegacyCost":f"{legacy.cost_yuan:.2f}","QBLegacyDifference":f"{legacy.cost_yuan-m.cost_yuan:.2f}",
+        "QBMatchedPlanDifference":f"{m.planned_cost_yuan-old.planned_cost_yuan:.2f}",
+        "QBMatchedEmergencyDifference":f"{old.emergency_cost_yuan-m.emergency_cost_yuan:.2f}",
+        "QBMatchedPercent":f"{(m.cost_yuan/old.cost_yuan-1)*100:.2f}",
         "QBOldSavingPercent":f"{(1-m.cost_yuan/old.cost_yuan)*100:.3f}",
         "QBMatchedDifference":f"{b.loc['matched24'].cost_yuan-m.cost_yuan:.2f}",
         "QBSeventyTwoDifference":f"{b.loc['B72'].cost_yuan-m.cost_yuan:.2f}",
@@ -39,8 +45,15 @@ def write_boundary_tables(folder,best,comparison,boundary,diagnostics,ci,sensiti
         suffix={"point_policy":"Point","no_storage":"Base","risk_reference":"Reference","risk_mpc":"Mpc","risk_greedy":"Greedy"}[strategy]
         numbers[f"QBCI{suffix}Low"]=f"{values['ci95_mean_daily_yuan'][0]:.2f}"
         numbers[f"QBCI{suffix}High"]=f"{values['ci95_mean_daily_yuan'][1]:.2f}"
+    boundary_ci_file=folder/"boundary_paired_comparisons.json"
+    if boundary_ci_file.exists():
+        boundary_ci=json.loads(boundary_ci_file.read_text())
+        for name,suffix in (("matched24","Matched"),("A24","AltA"),("B72","SeventyTwo"),("B48salvage","Salvage"),("legacy_frozen","Legacy")):
+            if name in boundary_ci:
+                numbers[f"QBCI{suffix}Low"]=f"{boundary_ci[name]['ci95_mean_daily_yuan'][0]:.2f}"
+                numbers[f"QBCI{suffix}High"]=f"{boundary_ci[name]['ci95_mean_daily_yuan'][1]:.2f}"
     (folder/"tables/q2_boundary_numbers.tex").write_text("\n".join(f"\\providecommand{{\\{k}}}{{{v}}}" for k,v in numbers.items())+"\n",encoding="utf-8")
-    lines=[r"\begin{table}[htbp]\centering\small",r"\caption{跨日边界处理的连续回放比较；除旧版冻结策略外使用主方案相同参数}",
+    lines=[r"\begin{table}[htbp]\centering\small",r"\caption{跨日边界处理的连续回放比较；除旧版冻结策略（沿用其归档参数）外使用主方案相同参数}",
            r"\label{tab:q2-boundary}\begin{tabular}{lrrrr}\toprule",
            r"方案 & 现金费/万元 & 修正费/万元 & 日末均值/kWh & 晚间补购/kWh \\\midrule"]
     for row in boundary.itertuples():

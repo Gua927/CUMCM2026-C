@@ -110,6 +110,28 @@ def problem1_intervals(convention: str = "start") -> pd.DataFrame:
     return out
 
 
+def align_daily_samples(values, convention="daily_cyclic_start"):
+    """Map raw 00:10..24:00 samples onto 00:00..23:50 start labels.
+
+    ``chronological_start`` takes midnight from the preceding date, not the
+    current date's 24:00. Only the missing first midnight is filled by the first
+    00:10 sample, for January warm-up (not a measured value). The last raw
+    midnight lies beyond the returned calendar-year horizon.
+    ``daily_cyclic_start`` preserves the published within-row convention.
+    Both are start-sample interpretations, not interval-end integration.
+    """
+    values = np.asarray(values, dtype=float)
+    if values.ndim != 2 or values.shape[1] != 144 or not len(values):
+        raise ValueError("Expected nonempty daily rows with 144 samples")
+    if not np.isfinite(values).all():
+        raise ValueError("Daily samples must be finite")
+    if convention == "daily_cyclic_start":
+        return np.roll(values, 1, axis=1)
+    if convention == "chronological_start":
+        return np.column_stack([np.r_[values[0, 0], values[:-1, -1]], values[:, :-1]])
+    raise ValueError(f"Unknown daily time convention: {convention}")
+
+
 def problem2_daily(convention="daily_cyclic_start"):
     """Return dates and (day, slot, load/PV) kWh with auditable time mapping."""
     sheets = load_attachment2()
@@ -127,14 +149,7 @@ def problem2_daily(convention="daily_cyclic_start"):
         values=frame.iloc[:,1:].to_numpy(float)
         if not np.isfinite(values).all() or (values<0).any():
             raise ValueError("Missing or negative annual power")
-        if convention == "daily_cyclic_start":
-            values=np.roll(values,1,axis=1)
-        elif convention == "chronological_start":
-            # First 00:00 is absent. It is only imputed for historical pretraining;
-            # January is unscored and storage remains idle throughout that month.
-            values=np.column_stack([np.r_[values[0,0],values[:-1,-1]],values[:,:-1]])
-        else:
-            raise ValueError(convention)
+        values=align_daily_samples(values, convention)
         arrays.append(values/6)
     return dates,np.stack(arrays,axis=-1)
 
@@ -167,8 +182,7 @@ def problem3_forecasts():
 def problem4_prices(convention="daily_cyclic_start"):
     """Return (dates, prices[day, slot]) in yuan/kWh from attachment 4.
 
-    The columns follow attachment 2 (00:10 ... 00:00+1); the same daily cyclic start
-    convention is applied so that slot k of every array covers [10k, 10k+10) minutes.
+    Apply exactly the same selected mapping as load/PV in attachment 2.
     """
     frame = load_attachment4()
     dates = pd.DatetimeIndex(pd.to_datetime(frame.iloc[:, 0]))
@@ -179,6 +193,4 @@ def problem4_prices(convention="daily_cyclic_start"):
     values = frame.iloc[:, 1:].to_numpy(float)
     if not np.isfinite(values).all() or (values <= 0).any():
         raise ValueError("Prices must be finite and positive")
-    if convention != "daily_cyclic_start":
-        raise ValueError(convention)
-    return dates, np.roll(values, 1, axis=1)
+    return dates, align_daily_samples(values, convention)

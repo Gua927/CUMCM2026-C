@@ -86,7 +86,8 @@ class OfficialDataTests(unittest.TestCase):
     def test_physics_and_optimality_certificate(self):
         r=self.solution
         audit(r.schedule,self.battery,self.dt)
-        self.assertAlmostEqual(r.solver["primary_cost"]["objective"],35126.84858928963,places=5)
+        # Round-trip efficiency 0.9 split as sqrt(0.9) per direction (GB/T reading); 0.9 per direction gave 35126.84858928963.
+        self.assertAlmostEqual(r.solver["primary_cost"]["objective"],33801.47764894513,places=5)
         self.assertLess(abs(r.certificate["selected_minus_lp_yuan"]),1e-5)
         self.assertEqual(r.solver["primary_cost"]["relative_gap"],0)
 

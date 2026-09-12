@@ -21,8 +21,8 @@ def dashboard(main,stats,target,battery=None):
     payload=json.dumps(data,ensure_ascii=False,separators=(",",":"))
     html="""<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>第二问 | 因果日前风险调度</title><style>body{font:16px system-ui;margin:30px auto;max-width:1120px;padding:0 20px;background:#f5f7fa;color:#233434}section{background:white;border-radius:12px;padding:20px;margin:16px 0}svg{width:100%;height:auto}select,input{font:inherit}#detail{font-variant-numeric:tabular-nums}.muted{color:#617780}</style>
-<h1>第二问：固定合同 · 因果储能反馈</h1><p>二月至十二月：334 天，总费用 __COST__ 元；紧急购电 __EMERGENCY__ kWh。</p>
-<p class="muted">参数仅在一月选择；日内不修改合同。时标采用已声明的日循环起点解释。曲线均为实际回测结果，不是事后全知计划。</p>
+<h1>第二问：计划固定 · 因果储能反馈</h1><p>二月至十二月：334 天，总费用 __COST__ 元；紧急购电 __EMERGENCY__ kWh。</p>
+<p class="muted">参数仅在一月选择；0时计划购电量在日内保持不变。时标采用已声明的日循环起点解释。曲线均为实际回测结果，不是事后全知计划。</p>
 <section><label>日期 <select id="date"></select></label><svg id="power" viewBox="0 0 1080 280"></svg><svg id="soc" viewBox="0 0 1080 180"></svg>
 <input id="slider" type="range" min="0" max="143" value="60" style="width:100%"><p id="detail"></p></section>
 <p class="muted">蓝：计划电量；橙：紧急电量；灰：实际净负荷；绿：储能状态。计划费用包含已付费但未取用部分。原始文件、逐日费用与校验见版本归档。</p>

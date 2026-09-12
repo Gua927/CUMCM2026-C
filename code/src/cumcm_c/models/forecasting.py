@@ -1,7 +1,14 @@
-"""Causal daily profiles and out-of-sample residual calibration; no attachment 3."""
+"""Causal daily profiles, a fitted direct regression forecaster and matured residuals.
+
+Every forecaster receives only completed days. `predict` never sees the target day or
+any later row, and the regression coefficients are re-estimated at each issue from the
+most recent completed days only (rolling origin, direct multi-lead strategy).
+"""
 from __future__ import annotations
 
 import numpy as np
+
+FORECAST_MODES = ("seasonal", "trend", "regression")
 
 
 def smooth(x, width=3):
@@ -9,7 +16,54 @@ def smooth(x, width=3):
     return sum(np.roll(x, k, axis=-1) for k in range(-width//2+1, width//2+1))/width
 
 
-def predict(history, mode="trend", window=28, lead_days=1):
+def _ridge_per_slot(X, y, ridge):
+    """Per-slot ridge regression with an unpenalised intercept.
+
+    X: (slots, samples, features), y: (slots, samples). Features are standardised inside
+    the training window; the returned callable maps raw (slots, features) to predictions.
+    """
+    mean = X.mean(axis=1, keepdims=True); scale = X.std(axis=1, keepdims=True)
+    scale = np.where(scale > 1e-9, scale, 1.0)
+    Z = (X-mean)/scale; ybar = y.mean(axis=1, keepdims=True); yc = y-ybar
+    k = Z.shape[2]; gram = np.einsum("smk,sml->skl", Z, Z)+ridge*np.eye(k)[None]
+    beta = np.linalg.solve(gram, np.einsum("smk,sm->sk", Z, yc))
+    return lambda x: ybar[:, 0]+np.einsum("sk,sk->s", (x-mean[:, 0, :])/scale[:, 0, :], beta)
+
+
+def regression_predict(history, lead_days, training_days=56, ridge=1.0, min_samples=12):
+    """Direct per-slot regression fitted on completed days only.
+
+    Load at slot s of target day d is regressed on the same slot one week earlier, the
+    same slot of the most recent completed day (d - lead) and that day's mean load; PV
+    on the same slot of the most recent completed day and its seven-day mean. Training
+    pairs (features, target) use targets d <= n-1, i.e. days whose actual profile is
+    complete at the issue time; the issue-time feature row uses days <= n-1 as well.
+    Returns None when fewer than `min_samples` training days exist.
+    """
+    history = np.asarray(history, float); n = len(history); lead = lead_days
+    lo = max(7, lead+6, n-training_days); days = np.arange(lo, n)
+    if len(days) < min_samples:
+        return None
+    load = history[:, :, 0]; pv = history[:, :, 1]; level = load.mean(axis=1)
+    slots = load.shape[1]
+
+    def load_features(d):
+        d = np.atleast_1d(d)
+        return np.stack([load[d-7], load[d-lead], np.repeat(level[d-lead][:, None], slots, axis=1)], axis=-1)
+
+    def pv_features(d):
+        d = np.atleast_1d(d)
+        recent = np.stack([pv[d-lead-k] for k in range(7)], axis=0).mean(axis=0)
+        return np.stack([pv[d-lead], recent], axis=-1)
+
+    target = n+lead-1
+    fit_load = _ridge_per_slot(load_features(days).transpose(1, 0, 2), load[days].T, ridge)
+    fit_pv = _ridge_per_slot(pv_features(days).transpose(1, 0, 2), pv[days].T, ridge)
+    out_load = fit_load(load_features(target)[0]); out_pv = fit_pv(pv_features(target)[0])
+    return np.maximum(np.stack([smooth(out_load, 3), smooth(out_pv, 3)], axis=-1), 0)
+
+
+def predict(history, mode="trend", window=28, lead_days=1, training_days=56, ridge=1.0):
     """history shape (completed days, 144, 2), units kWh. Never accepts future rows."""
     history = np.asarray(history, float)
     n = len(history)
@@ -19,6 +73,10 @@ def predict(history, mode="trend", window=28, lead_days=1):
         raise ValueError("At least seven complete finite historical days required")
     if mode == "seasonal":
         return np.maximum(np.stack([history[lead_days-8, :, 0], history[-1, :, 1]], axis=-1), 0)
+    if mode == "regression":
+        fitted = regression_predict(history, lead_days, training_days, ridge)
+        # Too few completed days to estimate coefficients: fall back to the trend profile.
+        return fitted if fitted is not None else predict(history, "trend", window, lead_days)
     if mode != "trend":
         raise ValueError(mode)
     # Weekday is learned by lag 7, without assuming which calendar days are weekends.
@@ -45,10 +103,11 @@ def predict(history, mode="trend", window=28, lead_days=1):
 def build_forecasts(actual, settings):
     """All forecasts stored before exposing each target day's observations."""
     result = {}
-    for mode in ("seasonal", "trend"):
+    for mode in FORECAST_MODES:
         forecasts = np.full_like(actual, np.nan)
         for day in range(7, len(actual)):
-            forecasts[day] = predict(actual[:day], mode, settings["forecast_window_days"])
+            forecasts[day] = predict(actual[:day], mode, settings["forecast_window_days"], 1,
+                                     settings.get("regression_training_days", 56), settings.get("regression_ridge", 1.0))
         result[mode] = forecasts
     return result
 
@@ -59,11 +118,12 @@ def build_horizon_forecasts(actual,settings):
     Final issue day still predicts beyond Dec 31. No unknown actual row is needed.
     """
     h=settings["forecast_horizon_days"];result={}
-    for mode in ("seasonal","trend"):
+    for mode in FORECAST_MODES:
         values=np.full((len(actual),h,*actual.shape[1:]),np.nan)
         for issue in range(7,len(actual)):
             for lead in range(h):
-                values[issue,lead]=predict(actual[:issue],mode,settings["forecast_window_days"],lead+1)
+                values[issue,lead]=predict(actual[:issue],mode,settings["forecast_window_days"],lead+1,
+                                           settings.get("regression_training_days",56),settings.get("regression_ridge",1.0))
         result[mode]=values
     return result
 

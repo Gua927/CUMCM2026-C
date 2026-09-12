@@ -17,10 +17,10 @@
 \end{figure}
 
 \FloatBarrier
-\subsection{两类合同机制与结算模型}
+\subsection{两类计划调整机制与结算模型}
 \label{sec:q4-price-convention}
 
-4-2沿用本地预测和固定合同，4-3沿用融合光伏预报、三时点调整及其信息链。规划时以预测价格替换相应代理模型中的$p_t$，实际现金费用则按交付时段实价计算：
+4-2沿用本地预测并保持0时计划购电量不变，4-3沿用融合光伏预报、三时点调整及其信息链。规划时以预测价格替换相应代理模型中的$p_t$，实际现金费用则按相应时段实价计算：
 \begin{equation}
   C_{4\text{-}2}^{\rm cash}=\sum_t p_t(q_t^0+5e_t),
   \label{eq:problem42}
@@ -36,7 +36,7 @@
 
 \subsection{运行结果与调整收益}
 
-\textbf{固定合同（4-2）。}现金费用为\QFourTwoTotalCost 万元，其中计划费\QFourTwoPlanCost 万元、紧急费\QFourTwoEmergencyCost 万元；紧急购电\QFourTwoEmergencyEnergy\ kWh，期末电量\QFourTwoTerminal\ kWh，日紧急费用CVaR95为\QFourTwoCvar 元。相对固定电价下的问题二，费用增加\QFourTwoVsQTwoPercent\%，说明在相同平均电价下，价格与购电时序的匹配仍会改变支出。
+\textbf{计划固定（4-2）。}现金费用为\QFourTwoTotalCost 万元，其中计划费\QFourTwoPlanCost 万元、紧急费\QFourTwoEmergencyCost 万元；紧急购电\QFourTwoEmergencyEnergy\ kWh，期末电量\QFourTwoTerminal\ kWh，日紧急费用CVaR95为\QFourTwoCvar 元。相对固定电价下的问题二，费用增加\QFourTwoVsQTwoPercent\%，说明在相同平均电价下，价格与购电时序的匹配仍会改变支出。
 
 \textbf{有偿调整（4-3）。}现金费用为\QFourThreeTotalCost 万元，由计划费\QFourThreePlanCost 万元、调整结算\QFourThreeAdjustCost 万元与紧急费\QFourThreeEmergencyCost 万元组成。紧急购电\QFourThreeEmergencyEnergy\ kWh，CVaR95为\QFourThreeCvar 元。相对同族仅0时计划，节省\QFourThreeSavingPlanOnly 元（\QFourThreeSavingPlanOnlyPercent\%），紧急购电由\QFourThreePlanOnlyEmergency 降至\QFourThreeEmergencyEnergy\ kWh。
 
@@ -53,8 +53,8 @@
 \FloatBarrier
 \subsection{结算效应、预测收益与风险}
 
-图~\ref{fig:q4-costs}采用逐层替换识别费用来源。保持问题二、问题三的决策不变，仅改用实时价结算，分别增支\QFourTwoSettlementEffect 元和\QFourThreeSettlementEffect 元，均约5.4\%；再让策略响应因果价格预测，分别收回\QFourTwoFixedDiff 元和\QFourThreeFixedDiff 元。4-2的日均预测节费95\%区间为$[\QFourCITwoFixedLow,\QFourCITwoFixedHigh]$元。预测利用了部分价格规律，但尚未抵消结算变化带来的全部增支。
+图~\ref{fig:q4-costs}采用逐层替换识别费用来源。保持问题二、问题三的决策不变，仅改用实时价结算，分别增支\QFourTwoSettlementEffect 元和\QFourThreeSettlementEffect 元（\QFourTwoSettlementPercent\%与\QFourThreeSettlementPercent\%）；再让策略响应因果价格预测，分别收回\QFourTwoFixedDiff 元和\QFourThreeFixedDiff 元。4-2的日均预测节费95\%区间为$[\QFourCITwoFixedLow,\QFourCITwoFixedHigh]$元。预测利用了部分价格规律，但尚未抵消结算变化带来的全部增支。
 
-更高的预测精度也不必然减少费用或补购。价格预知对照比两族主策略分别少付\QFourTwoPerfectGap 元和\QFourThreePerfectGap 元，但紧急购电均更高，两族各有132天费用高于因果策略。对4-3，取消日内价格修正仅使费用变化\QFourThreeNoIntradayDiff 元，日均差区间$[\QFourCIThreeNoIntradayLow,\QFourCIThreeNoIntradayHigh]$元包含零；信息链修正的费用差同样不显著，且补购略升。这些结果共同表明，点预测的改善只有在改变关键时段的合同与储能配置时，才会形成实际收益。
+更高的预测精度也不必然减少费用或补购。价格预知对照比两族主策略分别少付\QFourTwoPerfectGap 元和\QFourThreePerfectGap 元，但紧急购电均更高，两族分别有105天和109天的日费用高于因果策略。对4-3，取消日内价格修正仅使费用变化\QFourThreeNoIntradayDiff 元，日均差区间$[\QFourCIThreeNoIntradayLow,\QFourCIThreeNoIntradayHigh]$元包含零；信息链修正的费用差同样不显著，且补购略升。这些结果共同表明，点预测的改善只有在改变关键时段的计划购电量与储能配置时，才会形成实际收益。
 
 指定日期结果见附录表~\ref{tab:q42-purchase}至表~\ref{tab:q43-emergency}。两份工作簿\path{result4-2.xlsx}、\path{result4-3.xlsx}分别沿用问题二、问题三的结果口径。全部\QFourStrategyCount 条全年轨迹、规划价格和交付账单通过独立核验，详见\hyperref[sec:model-validation]{第九章}及附录\ref{app:validation-details}。

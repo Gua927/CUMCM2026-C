@@ -10,9 +10,10 @@ import pandas as pd
 import scipy
 from .paths import PATHS
 from .data import problem1_intervals,problem2_daily
-from .models.common import load_parameters
-from .models.forecasting import build_horizon_forecasts,horizon_distributions,risk_profile
+from .models.common import load_parameters,Battery
+from .models.forecasting import build_horizon_forecasts,horizon_distributions,risk_profile,FORECAST_MODES
 from .models.problem2 import plan_day,commit_first_day,execute_day,SOLVER_AUDIT
+from .models.scenario_selection import paired_horizon_scenarios, choose_plan
 from .models.problem2_evaluation import audit,daily_summary,emergency_intervals,summary,trajectory
 from .problem1_workflow import sha256,save_json,save_csv
 
@@ -28,7 +29,7 @@ def terminal_price(rule,prices,battery,settings):
 
 def backtest(dates,actual,forecasts,prices,battery,dt,settings,start,end,mode,quantile,
              controller="greedy",multiplier=5,initial=None,point_only=False,collect=True,
-             error_scale=1.0,horizon_days=None,terminal_rule=None,planning_records=None):
+             error_scale=1.0,horizon_days=None,terminal_rule=None,planning_records=None,scenario_selection=False):
     h=settings["planning_horizon_days"] if horizon_days is None else horizon_days
     rule=settings["far_terminal_rule"] if terminal_rule is None else terminal_rule
     if not 1<=h<=settings["forecast_horizon_days"]:raise ValueError("Unavailable forecast horizon")
@@ -36,6 +37,7 @@ def backtest(dates,actual,forecasts,prices,battery,dt,settings,start,end,mode,qu
     energy=battery.initial_soc_kwh if initial is None else initial
     rows=[];logs=[];cost=0.0;maxres=0.0
     for day in range(start,end):
+        chosen_quantile=quantile;candidate_scores=[];origins=[]
         points=forecasts[mode][day,:h]
         scenarios=horizon_distributions(actual[:day],forecasts[mode][:day],points,
                                         settings["residual_window_days"],error_scale)
@@ -45,7 +47,16 @@ def backtest(dates,actual,forecasts,prices,battery,dt,settings,start,end,mode,qu
         if controller=="idle":
             full_contract=np.maximum(risks.reshape(-1),0);contract=full_contract[:n];plan=None;reference=None
         else:
-            plan=plan_day(risks.reshape(-1),full_prices,energy,battery,dt,nu)
+            if scenario_selection:
+                if controller!="greedy" or point_only or error_scale!=1.0:
+                    raise ValueError("Scenario selector requires unscaled greedy candidate execution")
+                joint,origins=paired_horizon_scenarios(actual[:day],forecasts[mode][:day],points,settings["residual_window_days"])
+                plan,selected_risk,chosen_quantile,candidate_scores=choose_plan(
+                    scenarios,joint,full_prices,energy,battery,dt,settings["quantile_candidates"],quantile,
+                    multiplier,nu,settings["calibration_tie_tolerance_yuan"])
+                risks=selected_risk.reshape(h,n)
+            else:
+                plan=plan_day(risks.reshape(-1),full_prices,energy,battery,dt,nu)
             contract,reference=commit_first_day(plan,n);full_contract=plan.contract
             maxres=max(maxres,plan.max_residual)
         executed,residual=execute_day(actual[day],points[0],contract,prices,energy,battery,dt,
@@ -55,6 +66,8 @@ def backtest(dates,actual,forecasts,prices,battery,dt,settings,start,end,mode,qu
         maxres=max(maxres,residual)
         cutoff=str(dates[day-1].date())
         logs.append({"date":str(dates[day].date()),"forecast_mode":mode,"quantile":quantile,
+            "selected_quantile":chosen_quantile,"scenario_selection":scenario_selection,
+            "candidate_scores":candidate_scores,"joint_scenario_origins":[str(dates[i].date()) for i in origins],
             "planning_horizon_days":h,"terminal_rule":rule,"planning_terminal_value":nu,
             "scenario_counts":[len(s) for s in scenarios],"training_last_date":cutoff,
             "residual_last_origin_by_lead":[str(dates[day-lead-1].date()) for lead in range(h)],
@@ -68,8 +81,9 @@ def backtest(dates,actual,forecasts,prices,battery,dt,settings,start,end,mode,qu
             "committed_slots":n,"advisory_slots":(h-1)*n})
         if collect:
             rows.append(trajectory(dates[day],actual[day],points[0],risks[0],contract,executed,prices,multiplier,
-                {"training_last_date":cutoff,"forecast_mode":mode,"risk_quantile":quantile,
-                 "planning_horizon_days":h,"terminal_rule":rule}))
+                {"training_last_date":cutoff,"forecast_mode":mode,"risk_quantile":chosen_quantile,
+                 "planning_horizon_days":h,"terminal_rule":rule,"scenario_selection":scenario_selection,
+                 "time_convention":settings["time_convention"]}))
         if planning_records is not None and plan is not None:
             slots=np.arange(n*h);leads=slots//n
             planning_records.append(pd.DataFrame({
@@ -98,11 +112,11 @@ def select_candidate(table,settings):
     minimum=float(table.validation_adjusted_cost_yuan.min())
     tied=table[table.validation_adjusted_cost_yuan<=minimum+settings["calibration_tie_tolerance_yuan"]].copy()
     tied["controller_rank"]=tied.controller.map({k:i for i,k in enumerate(settings["controller_candidates"])})
-    tied["forecast_rank"]=tied.forecast_mode.map({"seasonal":0,"trend":1})
+    tied["forecast_rank"]=tied.forecast_mode.map({m:i for i,m in enumerate(FORECAST_MODES)})
     chosen=tied.sort_values(["quantile","controller_rank","forecast_rank"]).iloc[0]
     best=chosen.drop(labels=["controller_rank","forecast_rank"]).to_dict()
     best["tie_count"]=len(tied);best["tie_tolerance_yuan"]=settings["calibration_tie_tolerance_yuan"]
-    best["tie_rule"]="within tolerance, lower quantile, configured controller order, simpler seasonal forecast"
+    best["tie_rule"]="within tolerance, lower quantile, configured controller order, simpler forecaster (seasonal < trend < regression)"
     return best
 
 
@@ -111,7 +125,7 @@ def calibrate(prepared,folder):
     first=dates.get_loc(settings["calibration_start"]);last=dates.get_loc(settings["calibration_end"])+1
     records=[];decisions=[]
     for controller in settings["controller_candidates"]:
-        for mode in ("seasonal","trend"):
+        for mode in FORECAST_MODES:
             for q in settings["quantile_candidates"]:
                 _,logs,score,res=backtest(dates,actual,forecasts,prices,battery,dt,settings,first,last,
                                          mode,q,controller,collect=False)
@@ -194,7 +208,7 @@ def run(calibration_folder=None):
             "time_convention":settings["time_convention"],"days":365,"slots_per_day":144,"evaluation_days":334,
             "warmup_storage":"idle at 6000 kWh throughout January; calibration is a separate shadow replay",
             "data_sources":"Attachment 1 prices and Attachment 2 actuals only",
-            "selection":"24 combinations on January 15--31; no terminal-factor grid",
+            "selection":f"{len(FORECAST_MODES)*len(settings['quantile_candidates'])*len(settings['controller_candidates'])} combinations (forecaster x quantile x controller) on January 15--31; no terminal-factor grid",
             "horizon":"48h at the same information cutoff; only first 144 slots committed, tail advisory",
             "year_end":"Dec 31 issues Jan 1/2 forecasts from completed history; no horizon truncation",
             "terminal":"zero far-end value in main model; residual truncation assessed by 72h and fixed salvage",
@@ -270,11 +284,17 @@ def run_boundary(prepared,best,main,folder,audits):
     for relative,expected in old_manifest["artifacts"].items():
         if sha256(legacy/relative)!=expected:raise ValueError("Legacy source archive changed")
     old=pd.read_csv(legacy/"strategies/risk_policy.csv")
-    audits["legacy_frozen"]=audit(old,battery,dt,5,initial=battery.initial_soc_kwh)
+    # The frozen archive is audited under its own physical parameters; it may differ from the current battery.
+    legacy_config=json.loads((legacy/"config.json").read_text());legacy_battery=Battery(**legacy_config["battery"])
+    audits["legacy_frozen"]=audit(old,legacy_battery,dt,5,initial=legacy_battery.initial_soc_kwh)
+    audits["legacy_frozen"]["same_battery_as_current"]=legacy_config["battery"]==asdict(battery)
+    audits["legacy_frozen"]["same_time_convention_as_current"]=legacy_config["problem2"]["time_convention"]==settings["time_convention"]
     frames["legacy_frozen"]=old;save_csv(folder/"boundary/legacy_frozen.csv",old)
     save_json(folder/"boundary/legacy_source.json",{"path":str(legacy.relative_to(PATHS.root)),
         "source_sha256":sha256(legacy/"strategies/risk_policy.csv"),"selected_policy":json.loads((legacy/"selected_policy.json").read_text()),
-        "interpretation":"Historical frozen original, not a matched-parameter ablation unless selections agree."})
+        "legacy_battery":legacy_config["battery"],"legacy_time_convention":legacy_config["problem2"]["time_convention"],
+        "interpretation":"Historical frozen original under its own archived configuration (battery, calendar, forecaster); "
+                         "not a matched-parameter ablation unless the configuration and selection agree."})
     records.append({"variant":"legacy_frozen","horizon_days":1,"terminal_rule":"legacy",**boundary_stats(old,battery,nu)})
     return pd.DataFrame(records),frames
 
@@ -283,7 +303,8 @@ def run_sensitivity(prepared,best,main,folder):
     battery,dt,config,dates,actual,prices,forecasts=prepared;settings=config["problem2"]
     cases=[("quantile",q,battery,5) for q in (.5,.65,.8,.9)]
     cases += [("capacity",cap,replace(battery,capacity_kwh=cap,soc_min_kwh=cap*.1,soc_max_kwh=cap*.9,initial_soc_kwh=cap*.5),5) for cap in (9000,12000,15000)]
-    cases += [("efficiency",eta,replace(battery,charge_efficiency=eta,discharge_efficiency=eta),5) for eta in (.85,np.sqrt(.9))]
+    # 0.9 per direction (round trip 0.81) is the alternative reading of the stated 90 %.
+    cases += [("efficiency",eta,replace(battery,charge_efficiency=eta,discharge_efficiency=eta),5) for eta in (.85,.9)]
     cases += [("penalty",m,battery,m) for m in (3,5,7)]
     cases += [("error_scale",s,battery,5) for s in (.5,1.5)]
     cases += [("power",p,replace(battery,max_charge_power_kw=p,max_discharge_power_kw=p),5) for p in (3750,6250)]

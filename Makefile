@@ -1,6 +1,6 @@
 PYTHON ?= /root/miniconda3/bin/python
 
-.PHONY: inspect prepare-results solve-q1 check-q1 solve-q2 check-q2 solve-q3 check-q3 solve-q4 check-q4 review-compare figures test paper ai-details template-check check clean
+.PHONY: inspect prepare-results solve-q1 check-q1 solve-q2 check-q2 compare-time audit-causality solve-q3 check-q3 solve-q4 check-q4 review-compare figures test paper ai-details template-check check clean
 
 figures:
 	$(PYTHON) code/scripts/render_publication.py
@@ -13,6 +13,12 @@ solve-q2:
 
 check-q2:
 	$(PYTHON) code/scripts/validate_problem2.py
+
+compare-time:
+	$(PYTHON) code/scripts/compare_time_alignment.py
+
+audit-causality:
+	$(PYTHON) code/scripts/audit_causality.py $(AUDIT_ARGS)
 
 solve-q3:
 	$(PYTHON) code/scripts/solve_problem3.py

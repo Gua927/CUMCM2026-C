@@ -112,7 +112,8 @@ def backtest(prep, policy, start, end, initial=None, collect=True, records=False
             frames.append(trajectory(prep.dates[day], prep.actual[day], result, prep.prices, prep.pricing, policy,
                                      {"adjustment_slots": release_slots, "training_last_date": cutoff,
                                       "external_weight": policy.weight, "freeze_forecast": policy.freeze_forecast,
-                                      "cross_day_release": policy.cross_day_release, "matched_bias": policy.matched_bias}))
+                                      "cross_day_release": policy.cross_day_release, "matched_bias": policy.matched_bias,
+                                      "time_convention":prep.config["problem2"]["time_convention"]}))
         energy = result["energy"]
     score = cost-prep.common_nu*(energy-(prep.battery.initial_soc_kwh if initial is None else initial))
     frame = pd.concat(frames, ignore_index=True) if frames else None
@@ -363,11 +364,44 @@ def january_check(prep, folder):
     return table
 
 
+def legacy_comparable(reference, config):
+    """A frozen archive is a valid reproduction target only under the same physics, calendar and forecaster.
+
+    Returns (comparable, differences). Battery parameters, the attachment-2 time convention,
+    the in-house forecast settings and the Q3 forecast mode/weights must all agree; otherwise
+    the archive is a historical record, not a reproduction target.
+    """
+    path = PATHS.root/reference/"config.json"
+    if not path.exists():
+        return False, {"config": "missing"}
+    old = json.loads(path.read_text()); differences = {}
+    if old.get("battery") != config.get("battery"):
+        differences["battery"] = {"archive": old.get("battery"), "current": config.get("battery")}
+    keys2 = ("time_convention", "forecast_window_days", "residual_window_days", "regression_training_days", "regression_ridge",
+             "planning_horizon_days", "forecast_horizon_days", "far_terminal_rule")
+    for k in keys2:
+        if old.get("problem2", {}).get(k) != config.get("problem2", {}).get(k):
+            differences[f"problem2.{k}"] = {"archive": old.get("problem2", {}).get(k), "current": config.get("problem2", {}).get(k)}
+    keys3 = ("forecast_mode", "external_weight", "plan_quantile", "adjust_quantile_low", "adjust_quantile_high", "settlement", "residual_window_days")
+    for k in keys3:
+        if old.get("problem3", {}).get(k) != config.get("problem3", {}).get(k):
+            differences[f"problem3.{k}"] = {"archive": old.get("problem3", {}).get(k), "current": config.get("problem3", {}).get(k)}
+    return not differences, differences
+
+
 def legacy_reproduction(prep, frame, settings):
-    """The legacy-chain strategy must reproduce the frozen 2026-09-11 main trajectory slot by slot."""
+    """The legacy-chain strategy must reproduce the frozen 2026-09-11 main trajectory slot by slot.
+
+    Only checked when the frozen archive shares the current physics, calendar and forecaster;
+    otherwise the archive is reported as not comparable instead of asserting reproduction.
+    """
     reference = settings.get("legacy_reference_run")
     if not reference or not (PATHS.root/reference/"strategies/adjust_all.csv").exists():
         return {"passed": None, "reference": reference, "note": "frozen archive not available in this checkout"}
+    comparable, differences = legacy_comparable(reference, prep.config)
+    if not comparable:
+        return {"passed": None, "reference": reference, "note": "frozen archive used a different configuration; not a reproduction target",
+                "differences": differences}
     old = pd.read_csv(PATHS.root/reference/"strategies/adjust_all.csv")
     if len(old) != len(frame) or not (old.date.to_numpy() == frame.date.to_numpy()).all():
         raise ValueError("Frozen archive covers a different horizon")
@@ -458,7 +492,7 @@ def run():
             raise ValueError("Q3 replay does not reproduce Q2 under the Q2 information set")
         audits["legacy_reproduction"] = legacy_reproduction(prep, trajectories["legacy_chain"], settings)
         if audits["legacy_reproduction"]["passed"] is None:
-            print("WARNING: frozen legacy archive not available; legacy-chain reproduction NOT checked in this run", flush=True)
+            print(f"WARNING: legacy-chain reproduction NOT checked in this run: {audits['legacy_reproduction']['note']}", flush=True)
         ci = paired_bootstrap({"risk_policy": main, **{k: v for k, v in trajectories.items() if k != "adjust_all"}},
                               {**config["problem2"], "bootstrap_seed": settings["bootstrap_seed"]}, prep.common_nu)
         save_json(folder/"paired_comparisons.json", ci)
@@ -470,10 +504,10 @@ def run():
             "release_alignment": ("forecast hour h anchors the 10-minute slot starting h hours after release; previous observed slot is the first anchor; "
                                   "the four-candidate MAE comparison behind this choice is saved in alignment_check.csv"),
             "release_coverage": "release at slot b (issue_time) covers valid slots b..143 of the day and 0..b-1 of the next day (lead 1..144 slots)",
-            "pv_point": f"{settings['external_weight']:.2f} x attachment 3 + {1-settings['external_weight']:.2f} x in-house trend forecast",
+            "pv_point": f"{settings['external_weight']:.2f} x attachment 3 + {1-settings['external_weight']:.2f} x in-house {settings['forecast_mode']} forecast",
             "advisory_day": ("release-aware: covered next-day slots combine the newest release with the in-house lead-2 forecast, the rest keep the in-house forecast; "
                              "residuals rebuilt with the same construction and matured targets only" if settings.get("cross_day_release") else "in-house lead-2 forecast from 0:00"),
-            "load_forecast": "in-house trend forecast (Q2), intraday bias correction at releases"
+            "load_forecast": f"in-house {settings['forecast_mode']} forecast (Q2 selected policy), intraday bias correction at releases"
                              + ("; calibration residuals rebuild the same correction for every completed day" if settings.get("matched_bias") else ""),
             "risk": f"plan quantile {settings['plan_quantile']}, adjustment band [{settings['adjust_quantile_low']}, {settings['adjust_quantile_high']}] (proxy, constant in-band value)",
             "settlement": settings["settlement"], "horizon": "48h at 0:00; at each release the remaining day plus the next day (end fixed at next-day 24:00); only today's slots are contracts",

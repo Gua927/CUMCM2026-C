@@ -23,12 +23,27 @@ from cumcm_c.problem1_workflow import sha256,save_json
 # Tracked fingerprint of the frozen 2026-09-11 4-3 main trajectory (output/runs/problem4/20260911T081115925701Z, q43_forecast).
 LEGACY_FINGERPRINT={"cost_yuan":14383873.10,"emergency_grid_kwh":47442.09}
 
+# Configuration under which the frozen fingerprint was produced. The reproduction requirement only
+# applies when the current run shares it; otherwise the frozen archive is a historical record.
+LEGACY_CONFIG={"charge_efficiency":0.9,"discharge_efficiency":0.9,"time_convention":"daily_cyclic_start","forecast_mode":"trend"}
+
+
+def legacy_config_matches(config):
+    battery=config["battery"]
+    return (abs(battery["charge_efficiency"]-LEGACY_CONFIG["charge_efficiency"])<1e-12
+            and abs(battery["discharge_efficiency"]-LEGACY_CONFIG["discharge_efficiency"])<1e-12
+            and config["problem2"]["time_convention"]==LEGACY_CONFIG["time_convention"]
+            and config["problem3"]["forecast_mode"]==LEGACY_CONFIG["forecast_mode"])
+
 
 def legacy_check(folder,settings,config):
     """q43_legacy_chain must reproduce the frozen 4-3 trajectory: slot by slot when the archive is present, by tracked fingerprint otherwise."""
     reference=settings.get("legacy_reference_run");new=folder/"strategies/q43_legacy_chain.csv"
     if not new.exists():
         return {"passed":None,"skipped":True,"reference":reference,"note":"q43_legacy_chain trajectory not in this archive; requirement 7 NOT verified for 4-3"}
+    if not legacy_config_matches(config):
+        return {"passed":None,"skipped":True,"reference":reference,"legacy_config":LEGACY_CONFIG,
+                "note":"run uses a different battery efficiency, calendar or forecaster than the frozen archive; the legacy chain is reported, not asserted"}
     frame=pd.read_csv(new)
     fingerprint={"cost_yuan":float(frame.cost_yuan.sum()),"emergency_grid_kwh":float(frame.emergency_grid_kwh.sum())}
     if any(abs(fingerprint[k]-v)>0.01 for k,v in LEGACY_FINGERPRINT.items()):
@@ -53,7 +68,8 @@ def main():
     for name,expected in json.loads((folder/"input_hashes.json").read_text()).items():
         if sha256(ROOT/name)!=expected:raise ValueError(f"Raw input differs from the archived hash: {name}")
     from cumcm_c.data import problem4_prices
-    dates,prices=problem4_prices()
+    # Prices must be aligned with the same calendar interpretation as the archived run.
+    dates,prices=problem4_prices(config["problem2"]["time_convention"])
     for source in sorted((folder/"strategies").glob("*.csv")):
         if source.stem.endswith("_daily"):continue
         f=pd.read_csv(source)

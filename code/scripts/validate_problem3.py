@@ -93,12 +93,27 @@ def poisoning_check(prep,policy,legacy,settings,pricing,b,dt,frame,dates):
 # annual cash cost in yuan. Lets a clean clone without the gitignored archive still check requirement 7 at cost level.
 LEGACY_FINGERPRINT={"cost_yuan":13712887.43,"emergency_grid_kwh":37589.90,"terminal_kwh":8837.45}
 
+# Configuration under which the frozen fingerprint was produced. The reproduction requirement only
+# applies when the current run shares it; otherwise the frozen archive is a historical record.
+LEGACY_CONFIG={"charge_efficiency":0.9,"discharge_efficiency":0.9,"time_convention":"daily_cyclic_start","forecast_mode":"trend"}
 
-def legacy_check(folder,settings):
+
+def legacy_config_matches(config):
+    battery=config["battery"]
+    return (abs(battery["charge_efficiency"]-LEGACY_CONFIG["charge_efficiency"])<1e-12
+            and abs(battery["discharge_efficiency"]-LEGACY_CONFIG["discharge_efficiency"])<1e-12
+            and config["problem2"]["time_convention"]==LEGACY_CONFIG["time_convention"]
+            and config["problem3"]["forecast_mode"]==LEGACY_CONFIG["forecast_mode"])
+
+
+def legacy_check(folder,settings,config):
     """Reproduction of the frozen archive by the legacy chain: slot by slot when the archive is present, by tracked fingerprint otherwise."""
     reference=settings.get("legacy_reference_run");new=folder/"strategies/legacy_chain.csv"
     if not new.exists():
         return {"passed":None,"skipped":True,"reference":reference,"note":"legacy_chain trajectory not in this archive; requirement 7 NOT verified"}
+    if not legacy_config_matches(config):
+        return {"passed":None,"skipped":True,"reference":reference,"legacy_config":LEGACY_CONFIG,
+                "note":"run uses a different battery efficiency, calendar or forecaster than the frozen archive; the legacy chain is reported, not asserted"}
     frame=pd.read_csv(new)
     fingerprint={"cost_yuan":float(frame.cost_yuan.sum()),"emergency_grid_kwh":float(frame.emergency_grid_kwh.sum()),"terminal_kwh":float(frame.soc_end_kwh.iloc[-1])}
     if any(abs(fingerprint[k]-v)>0.01 for k,v in LEGACY_FINGERPRINT.items()):
@@ -152,7 +167,7 @@ def main():
         from cumcm_c.problem3_workflow import make_policy
         legacy=make_policy(settings,cross_day=False,matched_bias=False)
     results["poisoning_check"]=poisoning_check(prep,strategies["adjust_all"][0],legacy,settings,pricing,b,dt,frame,config["report_dates"])
-    results["legacy_reproduction"]=legacy_check(folder,settings)
+    results["legacy_reproduction"]=legacy_check(folder,settings,config)
     results["workbook"]=validate_workbook(folder/"result3.xlsx",frame)
     if sha256(PATHS.result_dir/"result3.xlsx")!=sha256(folder/"result3.xlsx"):raise ValueError("Published workbook differs")
     save_json(PATHS.output_dir/"logs/problem3-validation.json",results)

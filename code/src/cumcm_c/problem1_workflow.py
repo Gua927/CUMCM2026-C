@@ -120,6 +120,7 @@ def run(convention=None,environment_warnings=()):
         comparisons["saving_percent"]=comparisons.saving_yuan/base*100
         summary=comparisons.iloc[-1].to_dict()
         summary.update({"time_convention":convention,"run_id":run_id,
+                        "charge_efficiency":battery.charge_efficiency,"discharge_efficiency":battery.discharge_efficiency,
                         "primary_optimum_yuan":solution.solver["primary_cost"]["objective"]})
         save_json(folder/"summary.json",summary)
         save_json(folder/"solver.json",solution.solver)
@@ -206,7 +207,7 @@ def write_report(folder,summary,certificate,times,comparisons,sensitivity):
       f"- 充电 {fmt(summary['charge_kwh'])} kWh，放电 {fmt(summary['discharge_kwh'])} kWh，转换损耗 {fmt(summary['loss_kwh'])} kWh。",
       f"- 弃光 {fmt(summary['curtailed_kwh'])} kWh；初末电量均为 {summary['initial_kwh']:.3f} kWh。",
       f"- LP 下界 {certificate['lp_objective_yuan']:.9f} 元；所选平滑解比下界高 {certificate['selected_minus_lp_yuan']:.3g} 元。",
-      "", "上述最优性针对给定预测、单节点、双侧效率0.9、无售电、固定初末电量及已确认时间口径；不是未来实测偏差下的最优运行保证。", "",
+      "", f"上述最优性针对给定预测、单节点、单程效率{summary['charge_efficiency']:.4f}（往返{summary['charge_efficiency']*summary['discharge_efficiency']:.2f}）、无售电、固定初末电量及已确认时间口径；不是未来实测偏差下的最优运行保证。", "",
       "先最小化费用，再在1e-7元容差内最小化充放电吞吐量，最后最小化日循环购电总变差。后两步只选择近等价最优解，不以任意权重修改经济目标。", "",
       "## 时间标签与模板", "",
       "用户已确认按官方模板将附件时间解释为时段起点。附件末行次日0:00循环放到当日首时段；模板保持原标签和格式，最后一行次日0:00–0:10填入周期重复的首时段。",
@@ -216,7 +217,7 @@ def write_report(folder,summary,certificate,times,comparisons,sensitivity):
     for i in comparisons.itertuples():lines.append(f"| {i.strategy} | {i.cost_yuan:.2f} | {i.grid_kwh:.3f} | {i.curtailed_kwh:.3f} | {i.saving_percent:.2f}% |")
     lines += ["", "规则基线按已知日价格的25%/75%分位数决定低价充、高价放，优先吸收光伏富余，并做期末电量可达性修正。没有用优化费用反向调参。", "",
       "## 敏感性与含义", "",
-      "容量试验同步保持SOC下限10%、上限90%、初值50%；功率、单程效率分别单独变化。单程sqrt(0.9)对应往返90%的解释。光伏0.8/1/1.2倍试验每次重新优化，只衡量输入变化，不代表既定计划抵御真实预测误差的能力。所有试验均独立检查物理可行性。", "",
+      "容量试验同步保持SOC下限10%、上限90%、初值50%；功率、单程效率分别单独变化。主设定单程sqrt(0.9)对应国标往返效率90%；单程0.9（往返0.81）为双侧单程解释的对照。光伏0.8/1/1.2倍试验每次重新优化，只衡量输入变化，不代表既定计划抵御真实预测误差的能力。所有试验均独立检查物理可行性。", "",
       "## 保存的产物", "",
       "- `optimized_schedule.csv`：144时段全部输入、合同、充放电、弃光、SOC、损耗及费用。",
       "- `result1.xlsx`：官方模板格式结果；`tables/`：指定时段、4小时汇总及论文LaTeX表。",

@@ -1,4 +1,4 @@
-"""Q3 scientific figures from validated records: contract versions, information value."""
+"""Q3 scientific figures from validated records: purchase-plan versions and information value."""
 from __future__ import annotations
 
 import numpy as np
@@ -28,7 +28,7 @@ def q3_figures(main, comparison, trajectories, diagnostics, dates, folder, batte
         day = main[main.date == date]; ax = axes[row, 0]
         ax.stairs((day.load_kwh-day.pv_kwh).to_numpy()*6/1000, edges, color=C["load"], ls="--", lw=.9, baseline=None, label="实际净负荷")
         ax.stairs(day.planned_grid_kwh.to_numpy()*6/1000, edges, color=C["grid"], ls=":", lw=1.0, baseline=None, label="0:00计划")
-        ax.stairs(day.adjusted_grid_kwh.to_numpy()*6/1000, edges, color=C["grid"], baseline=None, label="最终合同")
+        ax.stairs(day.adjusted_grid_kwh.to_numpy()*6/1000, edges, color=C["grid"], baseline=None, label="最终计划购电量")
         ax.stairs(day.emergency_grid_kwh.to_numpy()*6/1000, edges, fill=True, color=C["emergency"], alpha=.65, hatch="///", label="紧急购电")
         for slot in releases:
             ax.axvline(slot/6, color=C["muted"], lw=.6, ls=(0, (2, 2)))
@@ -46,7 +46,7 @@ def q3_figures(main, comparison, trajectories, diagnostics, dates, folder, batte
     fig.legend(handles, labels, ncol=4, loc="outside lower center")
     for ax in axes[-1]:
         ax.set_xlabel("时刻 (h)")
-    save_figure(fig, folder, "q3_selected_days", "四指定日：0:00计划、最终有效合同、实际净负荷与紧急购电共用纵轴；竖虚线为调整时刻；SOC虚线为设备边界。")
+    save_figure(fig, folder, "q3_selected_days", "四指定日：0:00计划购电量、最终计划购电量、实际净负荷与紧急购电共用纵轴；竖虚线为调整时刻；SOC虚线为设备边界。")
     plt.close(fig)
 
     q3_information_value(comparison, paired or {}, adjustments, diagnostics, folder)
@@ -62,7 +62,7 @@ def q3_information_value(comparison, paired, adjustments, diagnostics, folder):
 
     a: cost ladder from the Problem 2 strategy to the main strategy with paired 95% intervals of each
     stage against the main strategy; b: value of each release alone and its marginal value inside the
-    full set; c: when each release changes the contract (mean daily up/down energy by target hour);
+    full set; c: when each release changes the purchase plan (mean daily up/down energy by target hour);
     d: 24 h PV forecast error of the external, local and fused forecasts at each release."""
     table = comparison.set_index("strategy"); cost = lambda k: float(table.loc[k, "cost_yuan"])/1e4
     days = int(table.loc["adjust_all", "days"]); to_year = days/1e4   # daily yuan -> annual 万元
