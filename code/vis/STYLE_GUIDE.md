@@ -7,7 +7,7 @@
 - `code/config/visual_style.json`：颜色、字体、字号、线宽、物理尺寸和导出格式的唯一配置源。
 - `code/vis/style.py`：加载样式、子图编号、坐标轴、导出前检查和网页主题。
 - `code/vis/publication.py`、`problem3.py`、`problem4.py`：从已核验数据生成问题一至四的论文图。
-- `code/vis/framework.py`：四问共用的信息–决策–结算时间线示意图，不含实际数值。
+- `code/vis/framework.py`：物理能量流、因果决策闭环与四问递进的矢量主图，不含模拟轨迹。
 - `code/vis/build.py`：只重绘、不求解的发布与归档流程。
 - `Agent.md`：将本规范作为当前与未来绘图的强制入口。
 
@@ -76,7 +76,7 @@
 
 | 图名 | 回答的问题 | 子图角色 |
 | --- | --- | --- |
-| `framework` | 四问在信息、决策与结算上如何递进？ | 示意图：时间线、决策时刻、结算项，不含实际数值 |
+| `framework` | 四问在信息、决策与结算上如何递进？ | a 物理能量流；b 信息—规划—运行反馈；c 四问递进。设备边界取题面，不含模拟轨迹 |
 | `q1_dispatch` | 购电尖峰、储能动作与储电量边界在同一时刻如何对应？ | a 供需与购电；b 充放电功率；c 储电量触界；d 电价与LP边际成本之差 |
 | `q1_comparison` | 与相同输入基线相比，费用与电量如何变化？ | 三面板并列比较 |
 | `q1_sensitivity` | 容量、功率、效率的局部经济影响是什么？ | 三面板并列比较 |
@@ -87,7 +87,7 @@
 | `q3_selected_days` | 新预报到来后合同如何相对0:00计划调整，紧急购电是否减少？ | 四日分面（附录） |
 | `q3_information_value` | 调整机制的价值来自哪里，哪些时点值得引入？ | a 费用阶梯与配对区间；b 时点单独价值与边际价值；c 调整足迹；d 预报误差 |
 | `q4_prices` | 实时电价的结构如何，日级水平由什么驱动，因果预测能达到什么精度？ | a 星期×时段热图；b 日均价–净负荷散点；c MAE |
-| `q4_costs` | 实时价结算的费用变化中，结算、预测、价格预知对照与信息集+机制各占多少？ | a 双阶梯与配对区间，括线为4-3相对4-2合计差并拆为0:00融合预报与日内调整；b 同行紧急购电量。“价格预知”行为信息放宽的启发式对照，图注不得称其为上界 |
+| `q4_costs` | 实时价结算的费用变化中，结算、预测、价格预知对照与信息集+机制各占多少？ | a 费用点、相邻变化与配对区间；b 同行紧急购电量；c 合计节省拆为0:00融合预报与日内调整，并单独展示合计配对区间。“价格预知”行为信息放宽的启发式对照，图注不得称其为上界 |
 
 热图等连续量统一使用配置中的 `colormaps.sequential`（viridis），并配独立色条；差值图或非零起点横轴须在图注声明。
 
@@ -152,3 +152,7 @@ plt.close(fig)
 2. [Nature：Building and exporting figure panels](https://research-figure-guide.nature.com/figures/building-and-exporting-figure-panels/)——分面构建与矢量输出。
 3. [Nature：Final submission](https://www.nature.com/nature/for-authors/final-submission)——字体一致性与可编辑图形。
 4. [NeurIPS 2023官方格式说明，第4.3节与第5节](https://media.neurips.cc/Conferences/NeurIPS2023/Styles/neurips_2023.pdf)——图形清晰、连续编号、黑白可读与字体嵌入。该文为历史格式示例，不作为2026年的投稿规则。
+
+## 9. 图一图像生成版（用户指定，2026-09-12）
+
+论文改用 `framework_imagegen.png`，以技术插画展示物理能量流、调度闭环与四问递进。内置工具生成并修正，原生1448×1086像素，160 mm插入约230 dpi；配套PDF是位图封装，不能称为矢量图或400 dpi原图。原 `framework` 三格式保留为可编辑备选。图像生成版不适用矢量字形与交叠自动检查，改为图中文字、箭头及实际论文尺寸目视复核；完整提示词及模型版本不可确认的说明见 `output/imagegen/framework-v1/manifest.json`。`make figures`保留该独立资产，论文不会退回旧矢量版。

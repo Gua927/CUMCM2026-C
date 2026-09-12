@@ -7,6 +7,7 @@ MODE="${1:-paper}"
 
 case "$MODE" in
   paper)
+    python3 "$ROOT/code/scripts/render_paper_tables.py"
     SOURCE="main.tex"
     BUILD="$ROOT/output/.build/paper"
     TARGET="$ROOT/output/paper/main.pdf"

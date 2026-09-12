@@ -37,3 +37,6 @@ tmp/
 # OS/editor
 .DS_Store
 Thumbs.db
+
+# Claude Code local worktrees
+.claude/

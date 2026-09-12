@@ -17,7 +17,7 @@
 % 仅在确认竞赛全过程完全未使用任何 AI 工具时改为 \AIUsedfalse。
 \newif\ifAIUsed
 \AIUsedtrue
-\newcommand{\AIUsageSummary}{资料整理、建模讨论、代码辅助与论文初稿撰写}
+\newcommand{\AIUsageSummary}{资料整理、建模讨论、代码辅助、图形重绘与论文润色}
 
 \begin{document}
 
@@ -29,10 +29,11 @@
 \input{sections/body}
 
 % 2026 规定：AI 工具使用声明必须置于参考文献之前。
+\clearpage
 \input{sections/ai_statement}
 \input{sections/references}
 
-% 附录需列支撑材料，并包含完整、可运行的源程序。
+% 按用户要求精简附录：保留补充证据、复现入口与关键代码，完整源码保存在支撑材料。
 \input{sections/appendix}
 
 \end{document}

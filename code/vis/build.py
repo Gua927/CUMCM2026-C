@@ -110,7 +110,7 @@ def build():
 
 
 def gallery(folder,target):
-    descriptions={"framework":"00 / 四问的信息、决策与结算时间线（示意）",
+    descriptions={"framework":"00 / 微网能量流、因果调度闭环与四问递进（主图）",
        "q1_dispatch":"01 / 购电、储能动作、储电量与边际成本的同刻对应","q1_comparison":"02 / 费用、电量与光伏消纳",
        "q1_sensitivity":"03 / 设备参数的边际影响","q2_selected_days":"04 / 四个指定日期的因果运行",
        "q2_risk_planning":"05 / 净负荷情景带、风险余量、费用构成与配对区间","q2_sensitivity":"06 / 风险参数的局部敏感性"}
@@ -120,7 +120,7 @@ def gallery(folder,target):
         descriptions["q3_information_value"]="09 / 信息价值阶梯、时点边际价值、调整足迹与预报误差"
     if (folder/"q4_prices.style.json").exists():
         descriptions["q4_prices"]="10 / 实时电价的星期×时段结构、净负荷驱动与因果预测误差"
-        descriptions["q4_costs"]="11 / 实时价结算下的费用阶梯：结算、预测、信息与机制效应"
+        descriptions["q4_costs"]="11 / 实时价格下的费用变化、紧急购电与节费来源"
     cards=[]
     for name,title in descriptions.items():
         meta=json.loads((folder/f"{name}.style.json").read_text())

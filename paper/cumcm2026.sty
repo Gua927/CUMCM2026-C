@@ -8,6 +8,7 @@
 \RequirePackage{booktabs,array,tabularx,longtable,multirow}
 \RequirePackage{graphicx,float,caption,subcaption}
 \RequirePackage{enumitem}
+\RequirePackage{placeins}
 \RequirePackage{xcolor}
 \RequirePackage{listings}
 \RequirePackage{siunitx}
@@ -27,7 +28,11 @@
 
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0pt}
-\linespread{1.35}
+\linespread{1.28}
+\setlength{\textfloatsep}{12pt plus 2pt minus 2pt}
+\setlength{\floatsep}{10pt plus 2pt minus 2pt}
+% Flush pending floats before longtable takes over the output routine.
+\BeforeBeginEnvironment{longtable}{\FloatBarrier}
 \setlength{\abovedisplayskip}{8pt plus 2pt minus 2pt}
 \setlength{\belowdisplayskip}{8pt plus 2pt minus 2pt}
 \setlist{leftmargin=2em,labelsep=0.6em,itemsep=0.25em,topsep=0.4em,parsep=0pt}
