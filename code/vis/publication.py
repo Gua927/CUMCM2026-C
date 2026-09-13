@@ -175,31 +175,76 @@ def q2_risk_planning(main,comparison,paired,scenarios,dates,folder):
         inside(ax.legend(ncol=3,loc="upper left",bbox_to_anchor=(.01,.99)))
         panel(ax,"a",f"风险规划的机制 · {focus}：计划量取情景的 0.8 分位数，缺口才触发紧急购电")
     ax.set_ylabel("功率 (MW)");ax.set_xlabel("时刻 (h)");time_axis(ax);ax.grid(False)
-    ax=fig.add_subplot(grid[1,0]);y=np.arange(len(comparison));normal=comparison.planned_cost_yuan.to_numpy()/1e4
-    emergency=comparison.emergency_cost_yuan.to_numpy()/1e4
-    ax.barh(y,normal,color=C["grid"],height=.66,label="计划费")
-    ax.barh(y,emergency,left=normal,color=C["emergency"],height=.66,hatch="///",label="紧急费")
-    for i,(name,value) in enumerate(zip(comparison.strategy,normal+emergency)):
-        inside(ax.annotate(f"{value:.0f}",(value,i),xytext=(3,0),textcoords="offset points",va="center",fontsize=8))
-        inside(ax.text(40,i,LABELS[name],color="white",va="center",ha="left",fontsize=8))
-    ax.invert_yaxis();ax.set_xlim(0,(normal+emergency).max()*1.32);ax.set_ylim(len(y)-.5,-.5)
-    ax.set_xlabel("334 天费用 (万元)");clean_axis(ax,grid=None);ax.set_yticks([]);ax.spines["left"].set_visible(False)
+    order=comparison.sort_values("cost_yuan").reset_index(drop=True)
+    names=list(order.strategy);n=len(names);top=-1.25;y=np.arange(n)
+    # b: cost composition. Rows are sorted by total cost and reused by c, so the two panels read as
+    # one table; the colour chip at each row's left edge carries the strategy identity into c and d.
+    ax=fig.add_subplot(grid[1,0])
+    normal=order.planned_cost_yuan.to_numpy()/1e4;emergency=order.emergency_cost_yuan.to_numpy()/1e4
+    total=normal+emergency;xmax=total.max()*1.42;base=total[0]
+    ax.barh(y,xmax,height=.70,color=tint(C["gridline"],.45),lw=0,zorder=0)
+    ax.barh(y,normal,height=.70,color=C["grid"],lw=0,zorder=2,label="计划费")
+    ax.barh(y,emergency,left=normal,height=.70,facecolor=tint(C["emergency"],.28),
+            edgecolor=C["emergency"],hatch="////",lw=.45,zorder=3,label="紧急费")
+    ax.axvline(base,color=C["muted"],ls=(0,(3,2.5)),lw=.7,zorder=4,ymax=.86)
+    for i,key in enumerate(names):
+        ax.plot([-.022*xmax]*2,[i-.35,i+.35],color=STRATEGY[key][0],lw=2.6,solid_capstyle="butt",zorder=6,clip_on=False)
+        inside(ax.annotate(f"{total[i]:.0f}",(total[i],i),xytext=(7,0),textcoords="offset points",va="center",fontsize=8,color=C["text"]))
+    ax.set_yticks(y,[LABELS[k] for k in names]);ax.tick_params(axis="y",length=0,pad=6)
+    for label,key in zip(ax.get_yticklabels(),names):
+        label.set_color(C["text"])
+        if key=="risk_policy":label.set_weight("bold")
+    ax.set_xlim(0,xmax);ax.set_ylim(n-.5,top);ax.set_xticks([0,1000,2000])
+    ax.set_xlabel("334 天费用 (万元)");ax.grid(False);ax.spines[["top","right","left"]].set_visible(False)
+    inside(ax.legend(ncol=2,loc="upper left",bbox_to_anchor=(0,1),handlelength=1.15,
+                     handleheight=.9,handletextpad=.6,columnspacing=1.0,borderpad=.15))
     panel(ax,"b","费用构成：计划费 + 紧急费")
-    ax=fig.add_subplot(grid[1,1]);keys=[k for k in comparison.strategy if k in (paired or {})]
-    for i,key in enumerate(keys):
-        values=paired[key];mean=values["mean_daily_saving_yuan"]/1000;low,high=np.array(values["ci95_mean_daily_yuan"])/1000
-        ax.errorbar(mean,i,xerr=[[mean-low],[high-mean]],fmt=STRATEGY[key][1],color=STRATEGY[key][0],capsize=2.5,ms=4.5,lw=1,mfc="white")
-    ax.axvline(0,color=C["load"],ls="--",lw=.8)
-    ax.set_ylim(len(keys)-.5,-.5);ax.set_xlim(-2.5,16);clean_axis(ax,grid="x")
-    ax.set_yticks(range(len(keys)),[LABELS[k] for k in keys]);ax.set_xlabel("主策略日均节省 (千元)");panel(ax,"c","配对节费与 95% 区间")
+    # c: paired daily saving on the same rows as b. A filled marker means the 95% interval excludes
+    # zero, a hollow one that it contains zero; the interval is drawn, never a fitted density.
+    ax=fig.add_subplot(grid[1,1]);paired=paired or {}
+    low_limit,high_limit=-1.8,22
+    for i,key in enumerate(names):
+        ax.plot([low_limit]*2,[i-.35,i+.35],color=STRATEGY[key][0],lw=2.6,solid_capstyle="butt",zorder=6,clip_on=False)
+    ax.axvline(0,color=C["text"],lw=.8,zorder=1,ymax=.86)
+    inside(ax.annotate("主策略更省 →",(0,top+.42),xytext=(3,0),textcoords="offset points",va="center",ha="left",fontsize=8,color=C["muted"]))
+    for i,key in enumerate(names):
+        if key not in paired:
+            ax.plot(0,i,marker="|",ms=6,mec=C["muted"],mew=1.1,zorder=5)
+            inside(ax.annotate("参照（主策略）",(0,i),xytext=(7,0),textcoords="offset points",va="center",fontsize=8,color=C["muted"]));continue
+        values=paired[key];mean=values["mean_daily_saving_yuan"]/1000
+        low,high=np.array(values["ci95_mean_daily_yuan"])/1000
+        color,marker,_=STRATEGY[key]
+        ax.plot([0,mean],[i,i],color=tint(color,.6),lw=1,zorder=2)
+        ax.plot([low,high],[i,i],color=tint(color,.45),lw=3.6,solid_capstyle="round",zorder=3)
+        ax.plot(mean,i,marker=marker,ms=4.6,mfc=color if low>0 else "white",mec=color,mew=1.15,zorder=5)
+        inside(ax.annotate(f"{mean:.2f}",(high_limit,i),xytext=(-2,0),textcoords="offset points",va="center",ha="right",fontsize=8,color=C["text"]))
+    ax.set_xlim(low_limit,high_limit);ax.set_ylim(n-.5,top);ax.set_yticks([]);ax.set_xticks([0,5,10,15,20])
+    ax.spines[["top","right","left"]].set_visible(False);ax.grid(False)
+    ax.set_xlabel("相对该对照的日均节省 (千元)");panel(ax,"c","配对节费与 95% 区间")
+    # d: the two indicators together. The dashed line joins the strategies that no other strategy
+    # beats on both axes at once; it is a descriptive non-dominated set, not a fitted frontier.
     ax=fig.add_subplot(grid[1,2])
-    offsets={"risk_policy":(0,9,"center"),"point_policy":(0,-13,"center"),"no_storage":(0,-13,"center"),"risk_reference":(0,-13,"center"),"risk_mpc":(5,4,"left"),"risk_greedy":(5,5,"left")}
-    for row in comparison.itertuples():
-        color,marker,_=STRATEGY[row.strategy];xv=row.cost_yuan/1e4;yv=row.emergency_cost_cvar95_yuan/1e4
-        ax.scatter(xv,yv,color=color,marker=marker,s=30,zorder=3)
-        dx,dy,ha=offsets[row.strategy];inside(ax.annotate(LABELS[row.strategy],(xv,yv),xytext=(dx,dy),textcoords="offset points",fontsize=8,ha=ha))
-    ax.set(xlabel="334 天费用 (万元)",ylabel="日紧急费 CVaR95 (万元)");ax.margins(x=.25,y=.3);clean_axis(ax,grid=None);panel(ax,"d","费用与尾部风险")
-    finish(fig,folder,"q2_risk_planning","a：指定日期中紧急购电最多的一天，情景为56条成对残差扰动的净负荷；b：计划费与紧急费堆叠，横轴从零起；c：主策略相对各对照的日均现金节省，误差线为七日循环块重采样95%区间；d：CVaR95为日紧急费用的经验95%尾部均值。")
+    points={row.strategy:(row.cost_yuan/1e4,row.emergency_cost_cvar95_yuan/1e4) for row in comparison.itertuples()}
+    front=sorted((x,v) for x,v in points.values()
+                 if not any(px<=x and pv<=v and (px,pv)!=(x,v) for px,pv in points.values()))
+    ax.plot(*zip(*front),color=tint(C["muted"],.35),ls=(0,(4,2.5)),lw=.75,zorder=1)
+    xs=[p[0] for p in points.values()];vs=[p[1] for p in points.values()]
+    ax.set_xlim(min(xs)-150,max(xs)+118);ax.set_ylim(min(vs)-1.15,max(vs)+.75)
+    offsets={"risk_policy":(0,20,"center"),"point_policy":(0,-17,"center"),"no_storage":(0,14,"center"),
+             "risk_reference":(-2,-16,"center"),"risk_mpc":(6,9,"left"),"risk_greedy":(6,9,"left")}
+    for key,(xv,yv) in points.items():
+        color,marker,_=STRATEGY[key]
+        if key=="risk_policy":ax.scatter(xv,yv,s=195,facecolor="none",edgecolor=tint(color,.55),lw=1.3,zorder=2)
+        ax.scatter(xv,yv,color=color,marker=marker,s=34,lw=0,zorder=4)
+        dx,dy,ha=offsets.get(key,(0,12,"center"))
+        inside(ax.annotate(LABELS[key],(xv,yv),xytext=(dx,dy),textcoords="offset points",fontsize=8,ha=ha,
+               color=C["text"],weight="bold" if key=="risk_policy" else "normal"))
+    ax.set(xlabel="334 天费用 (万元)",ylabel="日紧急费 CVaR95 (万元)");clean_axis(ax,grid=None)
+    x0,x1=ax.get_xlim();v0,v1=ax.get_ylim();at=lambda f,lo,hi:lo+(hi-lo)*f
+    inside(ax.annotate("非占优前沿",(at(.61,x0,x1),at(.135,v0,v1)),fontsize=8,color=C["muted"],ha="center",va="center"))
+    inside(ax.annotate("左下更优",(at(.985,x0,x1),at(.98,v0,v1)),fontsize=8,color=C["muted"],ha="right",va="top"))
+    panel(ax,"d","费用与尾部风险")
+    finish(fig,folder,"q2_risk_planning","a：指定日期中紧急购电最多的一天，情景为56条成对残差扰动的净负荷；b：计划费与紧急费堆叠，横轴从零起，行按总费用升序，虚线为主策略总费用参照，条形越过虚线的部分即多付的费用；c：与b同序同行，主策略相对各对照的日均现金节省，粗线为七日循环块重采样95%区间，实心标记表示区间不含零；d：CVaR95为日紧急费用的经验95%尾部均值，虚线连接在两项指标上均不被其他策略占优的点。")
 
 
 def q2_risk_figure(comparison,paired,folder):
