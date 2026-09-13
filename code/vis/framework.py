@@ -7,12 +7,13 @@ progress top-down with hollow block arrows, a vertical collector line that joins
 to a dashed "common objective" chain on the right, and a diamond end node.
 
 Rendering: every stroke is drawn twice with smooth low-frequency jitter (deterministic seed),
-like rough.js in "architect" mode; text uses the open-licence handwriting font Xiaolai
-(小赖字体, SIL OFL), the CJK font Excalidraw itself uses. Schematic only; no simulated data.
+like rough.js in "architect" mode. Text uses the paper's own typefaces — 宋体 (SimSun, the
+TrueType twin of the FandolSong body font) for CJK and Times New Roman for Latin/digits — so
+the diagram reads as part of the manuscript rather than a whiteboard sketch. FandolSong itself
+is CFF-flavoured OpenType, which the matplotlib PDF backend cannot embed as Type 42, hence
+SimSun. Schematic only; no simulated data.
 """
 from __future__ import annotations
-
-from pathlib import Path as FsPath
 
 import matplotlib
 matplotlib.use('Agg')
@@ -30,21 +31,17 @@ W, H = 160.0, 91.0
 INK = '#1E1E1E'
 THIN, BOLD = 0.7, 1.3                       # stroke widths in pt
 DASH_THIN, DASH_BOLD = (0, (4.5, 2.9)), (0, (3.8, 2.1))   # scaled by linewidth
-HAND_FONT_CANDIDATES = ('Xiaolai', '小赖字体', 'Xiaolai Mono')
+TEXT_FONTS = ('Times New Roman', 'SimSun', 'DejaVu Sans')   # Latin first, CJK fallback, last resort
 
 
-def hand_font():
-    """Locate the handwriting font; register user-installed copies and fail loudly if absent."""
-    for folder in (FsPath.home()/'.local/share/fonts', FsPath('/usr/share/fonts'), FsPath('/usr/local/share/fonts')):
-        for file in folder.rglob('Xiaolai*.ttf') if folder.exists() else ():
-            font_manager.fontManager.addfont(str(file))
-    for name in HAND_FONT_CANDIDATES:
+def text_font():
+    """Manuscript typefaces (Times New Roman + 宋体); fail loudly rather than substitute silently."""
+    for name in TEXT_FONTS[:2]:
         try:
-            return FontProperties(fname=font_manager.findfont(name, fallback_to_default=False))
-        except ValueError:
-            continue
-    raise RuntimeError('Handwriting font Xiaolai (小赖字体) not installed; download Xiaolai-Regular.ttf '
-                       'from github.com/lxgw/kose-font into ~/.local/share/fonts')
+            font_manager.findfont(name, fallback_to_default=False)
+        except ValueError as exc:
+            raise RuntimeError(f'Figure font missing: {name}') from exc
+    return FontProperties(family=list(TEXT_FONTS))   # list form enables per-glyph fallback
 
 
 class Rough:
@@ -131,7 +128,7 @@ class Rough:
 def framework_figure(schedule, folder):
     """Draw the hand-drawn framework; ``schedule`` is accepted for build-pipeline compatibility."""
     apply_paper_style()
-    font = hand_font()
+    font = text_font()
     fig = plt.figure(figsize=figure_size(H))
     ax = fig.add_axes([0, 0, 1, 1]); ax.set(xlim=(0, W), ylim=(0, H)); ax.axis('off')
     R = Rough(ax)
@@ -140,10 +137,11 @@ def framework_figure(schedule, folder):
     def Y(px): return H - px*PX          # reference pixel rows count from the top
 
     def text(px, py, s, size=8, ha='center', va='center', vertical=False, spacing=1.38):
+        # vertical=True stacks the characters; vertical=None keeps explicit line breaks with ``spacing``.
         if vertical:
             s = '\n'.join(s)
         return ax.text(X(px), Y(py), s, fontproperties=font, fontsize=size, color=INK, ha=ha, va=va,
-                       linespacing=spacing if vertical else 1.25, zorder=5)
+                       linespacing=1.25 if vertical is False else spacing, zorder=5)
 
     def rect(x0, y0, x1, y1, **kw):
         R.rect(X(x0), Y(y1), X(x1)-X(x0), Y(y0)-Y(y1), **kw)
@@ -166,9 +164,9 @@ def framework_figure(schedule, folder):
     text(230, 800, '建立单日调度模型'); text(230, 838, '进行基线分析'); text(230, 878, '得到费用基准')
     line([(230, 910), (230, 955)], dashed=True); text(268, 932, '引入', ha='left')
     rect(25, 955, 470, 1090, r=2.2, dashed=True, fill=False); text(247, 978, '全局使用')
-    rect(45, 998, 240, 1078, r=1.8); text(142, 1018, '电量平衡'); text(142, 1058, '设备约束')
-    rect(300, 998, 455, 1078, r=1.8); text(377, 1038, '费用核算')
-    line([(240, 1038), (300, 1038)])
+    rect(45, 995, 240, 1083, r=1.8); text(142, 1019, '电量平衡'); text(142, 1059, '设备约束')
+    rect(300, 995, 455, 1083, r=1.8); text(377, 1039, '费用核算')
+    line([(240, 1039), (300, 1039)])
 
     # ------------------------------------------------------------------ problem tags and hand-over
     for py, name in ((210, '问题2'), (578, '问题3'), (880, '问题4')):
@@ -193,7 +191,7 @@ def framework_figure(schedule, folder):
     rect(975, 680, 1145, 750, r=2.0, dashed=True); text(1060, 715, '有偿调整')
     line([(1145, 715), (1185, 715), (1185, 672), (1210, 672)], dashed=True)
     line([(1185, 715), (1185, 761), (1210, 761)], dashed=True)
-    rect(1210, 632, 1430, 712, r=2.0, dashed=True); text(1320, 653, '上下调代价'); text(1320, 691, '导出调整带')
+    rect(1210, 626, 1430, 714, r=2.0, dashed=True); text(1320, 651, '上下调代价'); text(1320, 690, '导出调整带')
     rect(1210, 722, 1430, 806, r=2.0, dashed=True); text(1320, 743, '6/12/18 时'); text(1320, 783, '滚动修改')
     R.block_arrow_down(X(915), Y(762), Y(828))
     # problem 4
@@ -218,17 +216,17 @@ def framework_figure(schedule, folder):
     text(1660, 545, '共同目标'); text(1660, 585, '最小化购电总费用')
     line([(1440, 570), (1480, 570)], dashed=True)
     arrow([(1630, 610), (1630, 712)])
-    rect(1490, 718, 1770, 818, r=2.0)
-    text(1630, 746, '按信息与权限'); text(1630, 790, '调整决策空间')
-    arrow([(1440, 768), (1490, 768)])
-    arrow([(1770, 768), (1800, 768)])
-    R.diamond(X(1893), Y(768), X(90), X(52)); text(1893, 768, '执行方案')
-    arrow([(1635, 928), (1635, 824)])
+    rect(1470, 718, 1750, 818, r=2.0)
+    text(1610, 746, '按信息与权限'); text(1610, 790, '调整决策空间')
+    arrow([(1440, 768), (1470, 768)])
+    arrow([(1750, 768), (1775, 768)])
+    R.diamond(X(1880), Y(768), X(105), X(75)); text(1880, 768, '执行方案')
+    arrow([(1615, 928), (1615, 824)])
     rect(1480, 928, 1850, 1018, r=2.2, dashed=True); text(1665, 973, '分项对照解释费用来源')
     line([(1440, 973), (1480, 973)], dashed=True)
 
     save_figure(fig, folder, 'framework',
-                '手绘风格结构示意，无模拟轨迹。左：问题一由题面抽象能量流与费用性质，建立单日调度模型，'
+                '手绘线条、正文字体的结构示意，无模拟轨迹。左：问题一由题面抽象能量流与费用性质，建立单日调度模型，'
                 '形成全局使用的电量平衡、设备约束与费用核算；中：问题二至四在同一虚线框内递进，'
                 '风险规划→预报融合与有偿调整→实时电价规划与机制比较；右：各问汇入共同目标，'
                 '按信息与交易权限调整决策空间，形成可执行方案，并以分项对照解释费用来源。')
