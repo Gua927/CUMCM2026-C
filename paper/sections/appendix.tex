@@ -3,7 +3,7 @@
 \renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
 \section{支撑材料结构}
 
-支撑材料按下表组织；数值归档、图形和官方结果工作簿分别保留，便于独立重建与核验。
+下表列出支撑材料的位置和用途。原始输入、运行结果、图形及提交工作簿分别保存，便于按同一配置重新计算和核对。
 
 \begin{longtable}{p{0.38\textwidth}p{0.52\textwidth}}
   \toprule
@@ -29,9 +29,9 @@
   \texttt{runs/visuals/} & 独立视觉版本、样式规范、源码及数值保护哈希 \\
   \texttt{issued\_plans.csv} & 问题二各起报日48小时预测及辅助规划，位于对应数值归档 \\
   \texttt{boundary/} & 24/48/72小时及远端残值的完整对照轨迹，位于问题二归档 \\
-  \texttt{runs/problem3/} & 问题三一月规则检验、14种策略逐日轨迹、发布计划与调整记录、校验归档 \\
+  \texttt{runs/problem3/} & 问题三一月规则检验、\QThreeStrategyCount 种策略逐日轨迹、发布计划与调整记录、校验归档 \\
   \texttt{issued\_adjustments.csv} & 问题三每次调整后的剩余时段计划购电量、风险带与参考储能轨迹，位于对应归档 \\
-  \texttt{runs/problem4/} & 问题四一月价格检验、8种策略逐日轨迹、价格预测误差与校验归档 \\
+  \texttt{runs/problem4/} & 问题四一月价格检验、\QFourStrategyCount 种策略逐日轨迹、价格预测误差与校验归档 \\
   \texttt{AI工具使用详情.pdf} & AI 工具使用过程、人工修改与核验记录 \\
   \bottomrule
 \end{longtable}
@@ -39,34 +39,34 @@
 \clearpage
 \section{关键算法流程}
 
-问题一执行流程为：校核附件与时间映射，构建并分层求解整数模型，计算线性松弛与对偶校验，独立审计运行轨迹，计算对照与敏感性，回读校验工作簿，最后将成功结果发布到固定入口并保留版本归档。运行失败时保存诊断，不发布为有效结果。可在项目根目录执行 \texttt{make solve-q1} 重算，执行 \texttt{make check-q1} 对最近归档作独立检查。
+\textbf{问题一。}读取附件并统一时间，建立整数规划，依次最小化费用、充放电总量和购电变化；再计算费用下界、对照及参数敏感性，检查逐时电量和工作簿。只有全部检查通过的运行才作为有效结果保存，失败则保留诊断。在项目根目录执行\texttt{make solve-q1}重算，执行\texttt{make check-q1}检查最近保存的结果。
 
-问题二执行流程为：以同一信息截止点生成多提前期预测，仅按已成熟的预测误差校准风险轮廓；一月选型后冻结参数，每日求解48小时代理规划，仅将前144时段确定为当天计划购电量，逐时执行并继承真实日末SOC；完成完整年度边界对照、局部敏感性及工作簿回读。运行\texttt{make solve-q2}重算，运行\texttt{make check-q2}核验实际及辅助轨迹，并因果重建保存的预测。
+\textbf{问题二。}每天用此前历史预测当天和次日，只使用目标已经结束的历史误差生成风险需求曲线；按一月选定参数求解48小时规划，取前144段作为当天计划。随后根据实际供需充放电、补购并传递日末电量，完成规划时长对照和敏感性计算。\texttt{make solve-q2}用于重算，\texttt{make check-q2}检查实际及辅助规划记录，并重建当时预测。
 
-问题三执行流程为：读取附件3并按对齐检验将整点预报锚定到发布后对应起始时段，以发布前刚结束的实测时段作首锚点插值到10分钟；光伏点预报与本地趋势预测等权融合，负荷沿用问题二预测；每日0:00以同一48小时风险规划确定当天计划购电量，在6:00、12:00、18:00按最新预报、实际SOC与0:00计划重解剩余时段的有偿调整LP，只更新当日尚未执行时段的计划量；逐时贪心执行并继承真实SOC；按最终计划购电量与0:00计划量的差额一次结算。运行\texttt{make solve-q3}重算14种策略与一月检验，运行\texttt{make check-q3}独立核验轨迹、调整记录、因果重建与工作簿。
+\textbf{问题三。}将附件三整点预报对应到发布后的时段，以发布前最后一段实测值补充首个插值点，得到10分钟预报并与本地预测平均。每日0时确定计划，6、12、18时依据新预报和实际储电量重算余下部分，最终按与0时计划的净差结算。执行\texttt{make solve-q3}计算\QThreeStrategyCount 种策略及一月比较，\texttt{make check-q3}检查计划版本、实际运行、费用和工作簿。
 
-问题四执行流程为：读取附件4并采用与附件2相同的连续日历时标；以已完成日期的价格和本地净负荷预测生成因果日前价格预测（两周同日均值与净负荷回归等权融合），在调整时刻按已观测的当日价格作加性修正；分别以问题二信息集（计划固定）和问题三信息集（三时点有偿调整）回放全年，规划用预测价、账单按相应时段实时价结算；另以附件1固定轮廓、当日价格已知、无日内修正、仅计划为对照。运行\texttt{make solve-q4}重算，运行\texttt{make check-q4}核验结算价格、轨迹、调整记录、价格因果重建与两份工作簿。
+\textbf{问题四。}附件四按与负荷相同的连续日历对齐，用相同星期的历史价格和净负荷回归组合预测电价，在调整时点加入当天已观测价格的平均偏差。分别模拟全天计划不变和日内可调整策略，规划用预测价，实际账单用交付时段实价；再计算固定价格、价格预知、不作日内修正及仅0时计划的对照。\texttt{make solve-q4}重算，\texttt{make check-q4}核对价格来源、运行记录和两份工作簿。
 
-图形采用统一语义颜色、子图编号与最终印刷字号，配置见\path{code/config/visual_style.json}，详细约束及设计依据见\path{code/vis/STYLE_GUIDE.md}。图形组织参考Nature科学图形指南与NeurIPS历史格式说明\cite{nature-figure-guide,neurips-figure-style}，论文版式仍以本竞赛规范为准。执行\texttt{make figures}可从已核验归档重绘，不重复求解；流程核对数值文件与工作簿哈希不变，并单独保存视觉版本。矢量图以160 mm全宽插入，区间阶梯保留10分钟分辨率；配对重采样区间与确定性敏感性连线明确区分。
+数据图统一采用相同颜色含义、子图编号与印刷字号，设置见\path{code/config/visual_style.json}及\path{code/vis/STYLE_GUIDE.md}。绘图组织参考科学图形指南\cite{nature-figure-guide,neurips-figure-style}，论文排版遵循本竞赛要求。\texttt{make figures}从已核验结果重绘数据图，不重新求解，也不改动数值文件和工作簿。图按160 mm宽度插入，阶梯曲线保留10分钟区间；统计区间与逐点重算的敏感性连线分别说明。
 
 \clearpage
 \section{问题一参数与时间解释的补充分析}
 \label{app:q1-sensitivity}
 
-对容量、充放电功率及效率进行单因素重新优化，结果如图~\ref{fig:q1-sensitivity}。容量改变时同步保持 SOC 下限为额定容量的 $10\%$、上限为 $90\%$、初末电量为 $50\%$；因此，该组结果代表整套储能规格变化，不能解释为固定初始电量下的纯容量边际收益。
+分别改变容量、最大充放电功率和效率，每改变一个参数就重新优化，结果见图~\ref{fig:q1-sensitivity}。容量变化时，下限、上限及初末电量分别保持额定容量的10\%、90\%和50\%，所以该组反映整套储能规格的变化，不是固定初始电量后单独增加容量的效果。
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{q1_sensitivity.pdf}
-  \caption{设备参数对最优费用的影响。a--c分别改变容量、功率上限与单程效率；各点均重新优化，实心点及竖虚线对应主设定。纵轴为局部费用范围，连线不表示统计置信区间。}
+  \caption{设备参数变化后的最低费用。a--c分别改变容量、功率上限和单程效率，每个点均重新优化；实心点和竖虚线标出主设定。纵轴使用局部费用范围，点间连线不代表置信区间。}
   \label{fig:q1-sensitivity}
 \end{figure}
 
-额定容量由 $6000$ 增至 $18000\ \mathrm{kWh}$ 时，最优费用由 $39314.00$ 降至 $30511.32$ 元；功率上限由 $2500$ 增至 $5000\ \mathrm{kW}$ 时，费用由 $35208.64$ 降至 $33801.48$ 元，再增至 $7500\ \mathrm{kW}$ 时为 $33715.70$ 元。这表明，在本日输入下，提高功率上限的边际节费趋于减弱，但该观察不能替代包含设备投资的容量选择分析。
+容量从$6000$增加到$18000\ \mathrm{kWh}$，最低费用从$39314.00$降至$30511.32$元。功率上限从$2500$增至$5000\ \mathrm{kW}$，费用从$35208.64$降至$33801.48$元；再增至$7500\ \mathrm{kW}$，仅降至$33715.70$元。可见本日数据下继续增加功率的节费逐渐减小，若要选择设备规格，还需计入投资费用。
 
-主设定按国家标准把题面的 $90\%$ 读作往返效率并取 $\eta_c=\eta_d=\sqrt{0.9}$；若改读为双侧各 $0.9$（往返 $0.81$），费用升至 $35126.85$ 元，说明效率口径须在后续各问中保持一致。光伏输入分别缩放为原值的 $0.8$ 和 $1.2$ 倍并重新优化时，费用分别为 $40562.89$ 和 $29924.85$ 元；这些属于确定性输入敏感性，不能视为既定计划应对真实预测误差的表现。
+主设定参考能量效率定义，将90\%解释为往返效率，取$\eta_c=\eta_d=\sqrt{0.9}$。若两侧各取0.9，往返变为0.81，费用升至$35126.85$元，因此各问必须保持相同解释。另将光伏整体乘0.8和1.2后重新优化，费用分别为$40562.89$和$29924.85$元。这是输入已知时重新制定计划的结果，不表示原计划遭遇预测误差后的表现。
 
-将附件时间改作时段终点，并在同样初末电量条件下重新优化，费用为 $33801.50$ 元，与主解释相差约 $0.02$ 元。虽然全天费用接近，指定时段的映射并不相同，因此仍保存两套完整策略及逐项对应关系。主结果以模板时段起点解释为准，为后续各问提供统一的时间、设备及费用核算接口。
+将原始时间改解释为时段终点，并保持相同初末电量重新优化，费用为$33801.50$元，与主解释仅差约$0.02$元。但同一时刻对应的电量并不相同，故另存两套完整策略及时间映射。第一问的日循环处理基于每日重复条件，后续全年数据则按正文所述连续日历排列。
 
 \clearpage
 \section{问题二补充图形}
@@ -74,13 +74,13 @@
 
 \begin{figure}[htbp]
  \centering\includegraphics[width=\textwidth]{../output/figures/q2_selected_days.pdf}
- \caption{指定日期的因果运行。a、c、e、g为0时计划购电量、实际净负荷与紧急补购，共用功率尺度；b、d、f、h为对应储电量，虚线为设备边界。实测曲线用于事后展示和当前反馈，不作为0时制定计划时的已知信息。}
+ \caption{问题二指定日期的连续运行结果。a、c、e、g比较0时计划、实际净负荷与紧急购电功率，b、d、f、h为对应储电量及设备上下限。实测曲线用于展示运行过程，不作为0时已知输入。}
  \label{fig:q2-days}
 \end{figure}
 
 \begin{figure}[htbp]
  \centering\includegraphics[width=\textwidth]{../output/figures/q2_boundary.pdf}
- \caption{跨日规划的运行机制。a：334天逐时平均储电量；b：两个时段的日均充电量，条形从零起。三方案预测器、分位数和控制器相同；平均曲线不代表任一实际单日轨迹。}
+ \caption{规划时长对储能安排的影响。a：334天各时段平均储电量；b：两个时段的日均充电量。三种方案采用相同预测、分位数与充放电规则；平均曲线不代表某一实际日期的运行。}
  \label{fig:q2-boundary}
 \end{figure}
 
@@ -90,42 +90,40 @@
 
 \begin{figure}[htbp]
  \centering\includegraphics[width=\textwidth]{../output/figures/q3_selected_days.pdf}
- \caption{问题三指定日期的因果运行。a、c、e、g：$0{:}00$计划购电量（点线）、最终计划购电量（实线）、实际净负荷与紧急购电，共用功率尺度，竖虚线为$6{:}00$、$12{:}00$、$18{:}00$调整时刻；b、d、f、h：对应储电量，虚线为设备边界。}
+ \caption{问题三指定日期的计划调整与实际运行。a、c、e、g比较0时计划（点线）、最终计划（实线）、实际净负荷及紧急购电功率，竖虚线为6、12、18时调整点；b、d、f、h给出储电量及设备上下限。}
  \label{fig:q3-days}
 \end{figure}
 
-表~\ref{tab:q3-horizon}按发布时刻与提前期分段给出调整时刻风险轮廓的实际覆盖率与光伏点预报误差，并与冻结旧版信息链对照：同构残差使当日剩余段的覆盖率贴近名义值；次日覆盖段的光伏误差高于本地两日预测，但$0.8$分位数轮廓的覆盖率仍接近名义值。
+表~\ref{tab:q3-horizon}分别统计各发布时刻对当日剩余、次日预报覆盖内外部分的需求覆盖率和光伏MAE，与改进前的方法比较。按当前方法重算历史误差后，当日上下界覆盖率更接近名义值；次日覆盖内的融合预报误差仍高于本地预测，但0.8分位数曲线的覆盖率接近80\%。
 
 \input{../output/tables/q3_horizon_layout.tex}
 
-\clearpage
+\FloatBarrier
 \section{问题四指定日期结果}
 \label{app:q4-dates}
 
-两族主策略在四个指定日期的结果按表1至表3格式给出；全天购电费均为按交付时段实时价结算的实际账单。
+以下按题目表1至表3的格式列出两类主策略在四个指定日期的结果。全天费用均取按相应交付时段实价结算的实际账单，4-3还包含计划调整的净支出。
 
 \begingroup
 \renewcommand{\arraystretch}{0.9}
-\input{../output/tables/q42_purchase.tex}
-\input{../output/tables/q42_storage.tex}
+\input{../output/tables/q42_purchase_layout.tex}
+\input{../output/tables/q42_storage_layout.tex}
 \endgroup
-\clearpage
 \input{../output/tables/q42_emergency.tex}
 \begingroup
 \renewcommand{\arraystretch}{0.9}
-\input{../output/tables/q43_purchase.tex}
-\input{../output/tables/q43_storage.tex}
+\input{../output/tables/q43_purchase_layout.tex}
+\input{../output/tables/q43_storage_layout.tex}
 \endgroup
-\clearpage
 \input{../output/tables/q43_emergency.tex}
 
 \clearpage
 \section{补充推导与独立核验细节}
 \label{app:validation-details}
 
-\subsection{风险指标与经济分位数的边界}
+\subsection{风险指标与分位数推导的条件}
 
-为刻画极端补购风险，记日紧急购电费为 $\mathcal L$。可在目标中加入风险项 $\lambda\operatorname{CVaR}_\alpha(\mathcal L)$，其定义为
+用$\mathcal L$表示日紧急购电费。若除平均支出外还希望额外限制高损失，可在目标中加入$\lambda\operatorname{CVaR}_\alpha(\mathcal L)$，其中
 \begin{equation}
   \operatorname{CVaR}_\alpha(\mathcal L)
   =\min_{\zeta}\left\{\zeta+
@@ -133,43 +131,43 @@
   \quad 0<\alpha<1.
   \label{eq:cvar}
 \end{equation}
-该项刻画高损失尾部，$\lambda$ 表示额外风险偏好。$5$ 倍紧急购电价格已经反映不足的经济代价，故期望费用模型本身即可作为主模型，CVaR 为可选扩展。实际费用、终端价值与风险项应分别报告，不能将优化目标值整体当作购电现金支出。
+CVaR衡量费用分布中高损失尾部的平均水平，$\lambda$表示对这部分损失的额外重视程度。本文主策略未加入该风险项，而以CVaR95评价运行结果；5倍补购价已经进入现金费用。即使加入风险项，也应分别报告实际支出、期末价值和风险目标，不能把三者之和当成账单。
 
 
-若允许需求准确揭示后以$1.5p$增购、以$0.5p$退款，单时段费用为
+0.8分位数的结论还依赖没有后续调整机会。若稍后能准确知道需求，并按$1.5p$增购、按$0.5p$退回取消费用，则单时段期望支出变为
 \[
  C(q)=pq+1.5p\mathbb E[(D-q)^+]-0.5p\mathbb E[(q-D)^+].
 \]
-最优0时计划购电量为中位数，说明后续调整机会会改变初始计划。随机价格的反例为：以90\%概率取$D=0,P=1$，以10\%概率取$D=100,P=10$。普通0.8分位数为零，期望费用500元；计划100 kWh的期望费用仅190元。故未知且与需求相关的价格不能从期望费用中约去。
+对上式求导，最优0时计划为需求中位数，说明可以事后调整时，日前余量应重新考虑。再看随机价格：90\%概率下$D=0,P=1$，10\%概率下$D=100,P=10$。普通0.8分位数为零，期望费用500元；计划100 kWh仅需190元。因此，需求大的情景同时更贵时，随机价格不能从期望费用中直接约去。
 
-\subsection{因果信息与辅助段核验}
+\subsection{预测信息与次日辅助规划的核验}
 
-\paragraph{问题2核验}
-独立核验覆盖实际轨迹的守恒、SOC连续、设备边界、互斥、补购用途和费用；另检查每份288时段规划的参考物理可行性、预测截止日期、成熟残差边界及前144时段计划购电量一致性。测试修改未来实测，确认此前多提前期预测和执行前缀不变，并检验年末预测视窗完整。另以\texttt{make audit-causality}对已发布归档逐日复核：将当日及之后的全部附件2实测替换为随机数后重新预测与规划，334天的0时计划购电量均与归档一致（最大差$3\times10^{-12}$ kWh以内），规划目标恒等于视窗内计划购电费；同一复核对问题三、四的0时计划与规划价格同样通过。另以\texttt{make compare-time}固定已选参数比较两种时标：连续日历解释的334天现金费用比日循环解释高424.18元，紧急购电多516.18 kWh，指定日期的紧急购电结论不变。官方工作簿回读与48096条实际轨迹一致，第二天虚拟购电不进入提交结果。
+\paragraph{问题二}
+先根据实际轨迹检查电量平衡、储电量连续、设备上下限及补购用途，再检查每份288段规划的物理约束、预测历史范围和前144段计划。替换未来实测后，此前预测与已执行动作保持不变，年末也维持完整规划范围。\par \texttt{make audit-causality}逐日把当天及以后的附件二实测替换为随机数，再重建预测和计划；334天0时计划与归档一致，最大差在$3\times10^{-12}$ kWh内，目标为规划期内计划购电费。同样检查问题三、四的0时计划及规划价格也通过。\texttt{make compare-time}固定参数比较两种时间解释：连续日历下费用高424.18元、紧急购电多516.18 kWh，指定日期补购结论不变。工作簿与48096条实际记录一致，次日辅助购电未计入正式结果。
 
-\paragraph{问题3核验}
-独立程序对\QThreeStrategyCount 条全年轨迹重算能量平衡、SOC转移与连续性、设备边界、充放电互斥、紧急电用途、计划购电取用恒等式、调整恒等式$q_t=q_t^0+\delta_t^+-\delta_t^-$及$\delta_t^+\delta_t^-=0$、计划版本不早于其生效时段、首个调整时刻前无调整，以及计划费、调整结算、紧急费与总费用的逐项恒等式，最大残差不超过$2\times10^{-5}$ kWh。全年\QThreeCash 元的现金费用由\QThreePlanCost、\QThreeAdjustCost、\QThreeEmergencyCost 万元三项精确加总。这些轨迹共求解\QThreeLPSolves 个线性规划（含一月影子检验全程为\QThreeLPSolvesTotal 个），最大原始--对偶目标差$\QThreeDualGap$元，被状态、残差或对偶证书拒绝的求解为\QThreeSolverFailures 次（任一拒绝都会中止回放，故完整归档的该计数必为零）。信息链四组变体的$0{:}00$计划288个时段与每份调整记录（主策略\QThreeAdjustmentRecords 次）的完整辅助段均已保存：辅助段满足状态转移、电量与功率边界，标记为未承诺，不进入任何账单；其点预报、风险轮廓与偏差修正由原始附件在归档配置下因果重建，最大差在$10^{-5}$ kWh以内，并对抽样记录在改写发布后观测、后续日期与未发布版本后重建第二次，结果逐项相同。测试用例改写尚未发布的版本与发布后的实测，确认此前的计划购电量与执行不变；两个信息链开关均关闭即为旧版信息链在当前口径下的同参对照；在旧版归档配置（双侧$0.9$效率、日循环时标）下它曾逐时复现2026年9月11日的冻结归档（最大差$10^{-12}$量级），口径变更后该复现断言按配置差异自动跳过并记录。权重取零且不调整时逐时复现问题二已发布策略。官方工作簿\texttt{result3.xlsx}的两张购电表分别为$0{:}00$计划及其费用、最终计划购电量及全天实际账单，充放电量与紧急购电量按最终执行填写，回读与轨迹一致。
+\paragraph{问题三}
+对\QThreeStrategyCount 组连续运行结果，重算电量平衡、储电量变化及连续性，检查功率、电量、互斥和紧急购电用途；核对$q_t=q_t^0+\delta_t^+-\delta_t^-$、$\delta_t^+\delta_t^-=0$以及计划版本只能在允许时点改变。最大电量残差不超过$2\times10^{-5}$ kWh。实际费用\QThreeCash 元可由计划\QThreePlanCost 万元、调整\QThreeAdjustCost 万元和紧急\QThreeEmergencyCost 万元相加得到。\par 共求解\QThreeLPSolves 个LP，计入一月比较为\QThreeLPSolvesTotal 个，最大原始与对偶目标差为$\QThreeDualGap$元。因状态、残差或对偶检查而拒绝的求解为\QThreeSolverFailures 次；程序遇到拒绝就停止该次回放，因此完整成功归档中的此计数应为零。\par 四组预报利用与误差处理方案均保存0时288段计划及完整调整记录，主策略共\QThreeAdjustmentRecords 次调整。次日辅助段满足设备约束，但明确标为未承诺，不进入账单。按原始附件与当时信息重建预测、分位数及负荷修正，最大差小于$10^{-5}$ kWh；抽样改写未来实测和未发布版本后，重建结果不变。\par 两项改进均关闭时，得到当前配置下的改进前对照。该方法在旧配置（两侧效率各0.9、日循环时标）下曾复现2026年9月11日结果，差在$10^{-12}$量级；当前配置不同，旧归档复现断言自动跳过并记录原因。去掉外部预报和调整时，则可逐时复现问题二。\texttt{result3.xlsx}分别保存0时计划、最终计划与实际账单，充放电和紧急购电表取最终执行记录，回读一致。
 
 
-\paragraph{问题4核验}
-独立程序对\QFourStrategyCount 条全年轨迹重算物理、计划购电量、调整与费用恒等式，并逐时核对结算价格等于附件四相应时段的价格；两族$0{:}00$计划的288个时段与4-3每次调整的完整辅助段均已保存、通过物理与承诺标记核验，其规划价格、点预报与风险轮廓由附件四历史、附件三版本与本地预测在归档配置下因果重建，改写当日及以后的价格不改变任何一天的规划价格；附件一固定轮廓且无日内修正的价格模型逐时复现问题三的计划购电量与执行，两份工作簿回读与轨迹一致。
+\paragraph{问题四}
+对\QFourStrategyCount 组结果独立核算物理与费用关系，逐时确认实际价格来自附件四对应记录。两类0时288段计划及4-3完整调整记录均保存，次日段满足物理条件但不构成正式承诺。用此前价格、已发布光伏预报和本地预测重建规划输入，改写当天及以后的实价不改变原0时规划价格。固定为附件一价格且不作日内修正时，可逐时复现问题三；两份工作簿均与运行明细一致。
 
 
 
 \FloatBarrier
 \input{../output/tables/q3_information_chain.tex}
 \FloatBarrier
-\clearpage
+\FloatBarrier
 \section{运行环境与复现入口}
 \label{app:reproduction}
 
-完整实现保存在支撑材料的\path{code/}目录。本附录保留补充证据、复现入口和四问关键实现；数据读写、绘图、导出及测试程序通过文件索引查阅。代码节选保留原文件行号，导入和依赖见对应源文件。
+完整代码位于支撑材料的\path{code/}。本附录列出运行环境、执行命令和关键实现，数据读写、绘图及测试可按索引查阅。代码片段保留原文件行号，需连同原模块的导入及依赖使用。
 
 \subsection{环境、输入与配置}
 
-Python依赖列于\path{code/requirements.txt}，主要使用NumPy与Pandas处理数据、SciPy求解规划、openpyxl读写工作簿、Matplotlib绘图。论文由XeLaTeX与latexmk编译。保留项目目录结构，在根目录运行以下命令。
+依赖清单见\path{code/requirements.txt}：NumPy和Pandas用于数据处理，SciPy用于优化，openpyxl用于工作簿读写，Matplotlib用于绘图；论文由XeLaTeX和latexmk编译。复现时保持目录结构，并在项目根目录执行命令。
 
-原始附件位于\texttt{doc/Problem/}下的C题附件目录，按只读方式加载。设备与交易参数集中在\path{code/config/problem.json}；官方结果写入\path{output/results/}，不覆盖输入模板。
+原始附件存放在\texttt{doc/Problem/}下的C题目录，程序只读取。设备和交易参数见\path{code/config/problem.json}，生成的提交工作簿位于\path{output/results/}，不覆盖原模板。
 
 \subsection{命令与执行顺序}
 
@@ -189,15 +187,15 @@ Python依赖列于\path{code/requirements.txt}，主要使用NumPy与Pandas处�
 
 \subsection{复现时的核对重点}
 
-先核验已保存结果，再按需要重算。四问独立检查分别覆盖物理约束、费用账本、预测信息边界与工作簿回读；辅助段只用于检验规划，其中的次日虚拟购电不形成正式计划，也不进入账单。
+先检查已经保存的结果，再按需要重新求解。检查依次覆盖物理约束、费用、预测可用时间和工作簿；辅助规划只用于判断次日需求，不把其中的虚拟购电加入正式承诺或账单。
 
-各问运行配置随数值版本保存，比较实验应使用同一版本内的预测、轨迹和账本。最终核对逐时记录、论文表格与五份工作簿一致；图一的独立图像资产另行维护，不由数值绘图命令重新生成。
+每次计算的配置与结果一同保存，比较时应使用同一版本内的预测、逐时记录和费用，最后核对论文表格与五份工作簿。图一为单独维护的流程示意，不由数据图重绘命令更新。
 
 \clearpage
 \section{核心文件与结果索引}
 \label{app:source-index}
 
-下表路径相对于\path{code/}。模型模块位于\path{src/cumcm_c/}；各问工作流负责按顺序调用模型、保存诊断与发布结果。完整源码及测试随项目保留，论文不逐文件打印。
+下表路径均相对于\path{code/}。模型位于\path{src/cumcm_c/}，各问工作流依次调用模型、记录求解过程并保存结果。完整源码和测试随项目提供，以下仅列出与复核直接相关的文件。
 
 \begin{longtable}{p{0.57\textwidth}p{0.35\textwidth}}
 \toprule
@@ -227,15 +225,15 @@ Python依赖列于\path{code/requirements.txt}，主要使用NumPy与Pandas处�
 
 \subsection{从论文结论追溯到运行数据}
 
-数值版本位于\path{output/runs/problem1/}至\path{output/runs/problem4/}。逐时记录区分预测计划、最终生效的计划购电量、实际执行及辅助段；验证时应在同一版本内比较，避免拼接不同配置的结果。
+各问结果分别位于\path{output/runs/problem1/}至\path{output/runs/problem4/}。核验时需区分0时计划、最终计划、实际动作与次日辅助规划，并确认使用同一配置，不能混合不同运行版本的数据。
 
 \noindent\begin{tabularx}{\textwidth}{p{0.29\textwidth}L}
 \toprule
 核验对象 & 应查看的材料与边界 \\
 \midrule
 计划购电与运行账单 & 实际轨迹、调整记录及五份结果工作簿；计划、调整和紧急费用分别核算。 \\
-跨日规划与信息链 & \path{issued_plans.csv}、\path{issued_adjustments.csv}及对应归档配置；次日辅助段不形成正式计划、不结算。 \\
-对照与结论 & 同参版本的逐日统计、敏感性与重采样区间；区间含零或风险升高的结果仍予保留。 \\
+跨日规划与预测输入 & \path{issued_plans.csv}、\path{issued_adjustments.csv}及对应配置；次日辅助段不形成正式计划，也不计费。 \\
+对照与结论 & 相同参数下的逐日统计、敏感性与重采样区间；区间含零或风险升高的结果仍予保留。 \\
 \bottomrule
 \end{tabularx}
 
@@ -243,7 +241,7 @@ Python依赖列于\path{code/requirements.txt}，主要使用NumPy与Pandas处�
 \section{关键实现节选}
 \label{app:code-excerpts}
 
-以下代码直接从现有源文件截取，行号对应原文件。每段展示一项核心机制，需在原模块及其依赖环境中使用，不作为独立脚本执行。
+下面直接截取现有源文件中与四问主要方法对应的函数，行号指向原文件。片段用于说明核心计算，实际运行需使用完整模块，不能作为独立脚本执行。
 
 \begingroup
 \lstset{basicstyle=\ttfamily\linespread{1}\fontsize{9}{11}\selectfont,numberstyle=\fontsize{7}{8}\selectfont\color{gray}}
@@ -254,37 +252,37 @@ Python依赖列于\path{code/requirements.txt}，主要使用NumPy与Pandas处�
 
 \lstinputlisting[language=Python,firstline=22,lastline=59,firstnumber=22,caption={确定性模型的变量、边界与约束}]{../code/src/cumcm_c/models/problem1.py}
 
-分层求解及原始--对偶核验由同文件的\texttt{solve}继续完成。本节只展示可行域构造；求解状态、最优费用与独立审计结果见正文和对应数值归档。
+同文件的\texttt{solve}函数继续完成分层求解及原始、对偶核验。上述片段只构造物理约束，求解状态、最低费用及独立检查结果见正文和相应运行目录。
 
 \clearpage
-\subsection{问题二：成熟残差与当天计划边界}
+\subsection{问题二：历史误差与当天计划}
 
-预测误差必须同时匹配起报日与提前期。下段按已完成目标日截取残差，再保留负荷、光伏成对误差向量，以此形成风险轮廓；该构造不声称给出了完整的跨日联合分布。
+历史误差需同时对应正确的发布日和目标日。以下先排除目标尚未结束的预测，再保留同日负荷、光伏的成对误差，形成风险需求曲线。逐时分位数不能表示完整的跨日联合误差分布。
 
-\lstinputlisting[language=Python,firstline=71,lastline=101,firstnumber=71,caption={按提前期构造已成熟误差与风险轮廓}]{../code/src/cumcm_c/models/forecasting.py}
+\lstinputlisting[language=Python,firstline=71,lastline=101,firstnumber=71,caption={按目标日筛选历史误差并构造需求曲线}]{../code/src/cumcm_c/models/forecasting.py}
 
-48小时规划返回整段参考购电量与储电量，但仅将当天144时段确定为正式计划。次日参考状态也不替代实际执行后的储电量；下一天从真实末态继续运行。
+48小时规划给出两天参考购电量和储电量，程序只取当天144段作为正式计划。次日参考电量不能替代实际运行末值，下一天仍从真实电量重新求解。
 
 \lstinputlisting[language=Python,firstline=99,lastline=102,firstnumber=99,caption={仅确定当天计划购电量}]{../code/src/cumcm_c/models/problem2.py}
 
 \clearpage
 \subsection{问题三：发布预报的跨日覆盖与残差重建}
 
-每次发布的24小时预报可能覆盖次日的一部分。第一个函数仅在该版本覆盖范围内融合外部预报，范围之外沿用当天0:00已经生成的本地预测；第二个函数按同一规则重建历史预测，并排除目标日尚未结束的误差。
+6、12、18时预报会覆盖次日一部分时段。第一个函数仅在该版本覆盖范围内融合外部预报，范围外保留当天0时的本地预测；第二个函数按同样步骤计算历史预测误差，并排除目标日尚未结束的样本。
 
-\lstinputlisting[language=Python,firstline=67,lastline=99,firstnumber=67,caption={已发布版本的次日辅助段与同构成熟残差}]{../code/src/cumcm_c/models/problem3.py}
+\lstinputlisting[language=Python,firstline=67,lastline=99,firstnumber=67,caption={次日预报覆盖与相同方法的历史误差}]{../code/src/cumcm_c/models/problem3.py}
 
-这些预测进入辅助规划，不形成次日正式计划。当日有偿调整的线性规划、实际执行与最终结算分别见同文件的\texttt{adjust\_contract}和\texttt{run\_day}；调整量始终相对于0:00计划记账。
+这些次日预测用于辅助规划，不产生提前承诺的购电。当天调整、实际执行和净额结算由同文件的\texttt{adjust\_contract}与\texttt{run\_day}完成，最终调整费用仍相对于0时计划计算。
 
 \clearpage
 \subsection{问题四：价格预测与实际结算分离}
 
-下列方法属于\path{models/problem4.py}中的\texttt{PriceModel}类。日前价格组合只使用已完成日期；在日内时刻$t$，加性修正只使用$t$之前已观测价格。\texttt{settle}另行返回交付日实价，防止将规划价格当作实际账单价格。
+以下方法属于\path{models/problem4.py}的\texttt{PriceModel}类。日前预测只用已完成日期；日内$t$时的修正只用$t$之前已观测价格。\texttt{settle}单独读取交付时段实价，使预测输入与实际账单分开。
 
 \lstinputlisting[language=Python,firstline=29,lastline=54,firstnumber=29,caption={因果价格预测的分量与等权组合}]{../code/src/cumcm_c/models/problem4.py}
 
 \lstinputlisting[language=Python,firstline=72,lastline=80,firstnumber=72,caption={日内修正与交付时段结算接口}]{../code/src/cumcm_c/models/problem4.py}
 
-类的构造函数及\texttt{today}、\texttt{tomorrow}接口见同文件。价格预知模式仅用于信息条件放宽的启发式对照，不作为最优费用下界；主策略仍采用因果预测模式。
+构造函数及\texttt{today}、\texttt{tomorrow}接口见同文件。主策略采用历史预测；价格预知模式只用于比较既定算法获得更多信息后的表现，不作为原问题的最低费用界限。
 
 \endgroup

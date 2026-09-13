@@ -1,27 +1,27 @@
 \input{../output/tables/q3_numbers.tex}
 
-\subsection{发布预报的接入与融合}
+\subsubsection{光伏预报的对齐与更新}
 
-附件三每天四次给出未来1--24小时整点光伏预报。对\QThreeAlignDays 个完整日期比较四种对齐方式，0时版本MAE依次为\QThreeAlignStart、\QThreeAlignEnd、\QThreeAlignPrevMean、\QThreeAlignNextMean\ kW，其余版本排序相同。因此将预报锚定到发布后对应小时起始的10分钟时段，以发布前刚结束时段的实测为首锚点，线性插值并作非负截断。发布时刻$b$的版本覆盖当日$b$--143与次日0--$b-1$共144个时段，转换不使用发布后的实测。
+附件三每次给出发布后1--24小时的整点光伏功率，需要先与10分钟运行时段对应。对\QThreeAlignDays 个完整日期，依次按整点后10分钟、整点前10分钟、前一小时均值和后一小时均值比较，0时版本MAE为\QThreeAlignStart、\QThreeAlignEnd、\QThreeAlignPrevMean、\QThreeAlignNextMean\ kW，其他版本排序相同。据此将整点值对应到该时刻起始的时段，并以发布前刚结束时段的实测值补充首个插值点，线性插值后去除负值。若发布时段序号为$b$，则覆盖当日$b$--143及次日0--$b-1$，全程不使用发布后的实测。
 
-外部预报并不总优于本地趋势预测（表~\ref{tab:q3-forecast}），两者等权融合在0、6、12时版本的24小时窗口内均优于任一单独来源；0.5权重在查看误差诊断后、费用回放前固定。对当日剩余时段，6时更新使MAE由\QThreeStaleMAESix 降至\QThreeFreshMAESix\ kW，12时由\QThreeStaleMAETwelve 降至\QThreeFreshMAETwelve\ kW。18时后当日已无光伏，预报只影响次日辅助段；该段融合误差反而高于本地两日预测，12、18时版本分别为\QThreeNextAwareTwelve 对\QThreeNextLocalTwelve、\QThreeNextAwareEighteen 对\QThreeNextLocalEighteen\ kW。该差异保留在评价中，融合权重不随费用结果调整。
+表~\ref{tab:q3-forecast}显示，附件三预报并非始终优于本地趋势预测。取二者各0.5权重后，0、6、12时版本的24小时误差均低于单独使用任一来源；权重在误差比较后、费用回放前确定。对当日剩余时段，6时更新使MAE由\QThreeStaleMAESix 降至\QThreeFreshMAESix\ kW，12时由\QThreeStaleMAETwelve 降至\QThreeFreshMAETwelve\ kW。\par 18时后的当日光伏已为零，但新预报还覆盖次日，仍可影响储能安排。这部分融合误差反而较大：12、18时版本分别为\QThreeNextAwareTwelve、\QThreeNextAwareEighteen\ kW，本地两日预测为\QThreeNextLocalTwelve、\QThreeNextLocalEighteen\ kW。本文保留该差异，不依据费用结果再改融合权重。
 
 \input{../output/tables/q3_forecast.tex}
 
-光伏取融合值，负荷沿用问题二的趋势预测；调整时以最近6个时段的负荷误差均值作指数衰减修正，时间常数为12个时段。残差库使用最近56日已成熟目标，并重建同一发布时刻的融合与负荷偏差修正。最新版本覆盖的次日部分与本地两日预测融合，覆盖之外沿用0时本地预测。主策略同时采用跨日预报与同构残差，冻结旧版及单项变体见第\ref{sec:q3-chain}节。
+光伏使用上述融合值，负荷仍采用问题二的趋势预测。每次调整时，将最近6段平均负荷误差加到预测上，并随预测距离增加逐渐减小该修正，衰减时间常数为12段。历史误差取最近56个已完成日期，按相同发布时间、融合方式和负荷修正规则重新计算；这样比较的误差才对应当前所用的方法。次日处于新预报范围内的部分进行融合，范围外保留0时本地预测。两项处理的独立作用见第\ref{sec:q3-chain}节。
 
-\subsection{有偿调整的决策模型}
+\subsubsection{调整区间与优化模型}
 
-由式~\eqref{eq:contract-cost}，日前计划、日内上调及保留可取消计划的边际价格分别为$p_t$、$1.5p_t$和$0.5p_t$。参照第\ref{sec:newsvendor}节的单时段推导，得到规划参数与调整阈值
+在式~\eqref{eq:contract-cost}的结算规则下，日前购买1 kWh需付$p_t$，日内增加1 kWh需付$1.5p_t$；若保留本可取消的1 kWh，则放弃$0.5p_t$退款。将这三种边际费用分别与$5p_t$补购价比较，得到
 \begin{equation}
   \alpha^{0}=1-\frac{1}{5}=0.8,\qquad
   \alpha^{+}=1-\frac{1.5}{5}=0.7,\qquad
   \alpha^{-}=1-\frac{0.5}{5}=0.9.
   \label{eq:q3-band}
 \end{equation}
-给定0时计划购电量，在无储能单时段问题中，该计划量低于更新需求的0.7分位数时上调，高于0.9分位数时下调，带内保持不动。两个端点对应调整时的边际费用；0时沿用0.8分位数是继承问题二的代理设定，未计入后续调整机会的期权价值。
+对于给定0时计划、无储能的单个时段，上式给出如下调整规则：计划低于更新需求的0.7分位数时增加，高于0.9分位数时取消一部分，位于二者之间时保持不变。本文称这一区间为\textbf{分位数调整区间}。0时计划仍沿用问题二的0.8参数，尚未把将来能够调整所带来的收益纳入日前优化。
 
-设调整时刻为$k$，当日剩余时段为$t=k,\dots,143$，次日辅助段为$t=144,\dots,287$。记$\widetilde n_t^{-}=\widetilde n_t(\alpha^{+})$、$\widetilde n_t^{+}=\widetilde n_t(\alpha^{-})$，调整LP为
+设当前调整时点为$k$，当日剩余时段为$t=k,\dots,143$，次日辅助时段为$t=144,\dots,287$。用$\widetilde n_t^{-}=\widetilde n_t(\alpha^{+})$和$\widetilde n_t^{+}=\widetilde n_t(\alpha^{-})$表示调整区间的下、上界，建立线性规划：
 \begin{equation}
 \begin{aligned}
  \min\quad&\sum_{t=k}^{143}p_t\bigl(1.5\delta_t^+-0.5\delta_t^--b_t\bigr)+\sum_{t=144}^{287}p_t\widetilde q_t,\\
@@ -33,65 +33,65 @@
 \end{aligned}
 \label{eq:q3-adjust}
 \end{equation}
-其中$\delta_t^+,\delta_t^-$为上调与取消电量，$b_t$为调整带内被覆盖的需求，其单位价值取$p_t$，介于保留计划的$0.5p_t$与增购的$1.5p_t$之间，故在无储能单时段情形下恰好复现调整带规则。常数价值是额外的代理假设：有储能时改用带内其他常数会改变跨时段配置，它不能视为真实补购损失的等价表达。
+式中$\delta_t^+$、$\delta_t^-$分别为增加与取消电量，$b_t$表示供能超过需求下界、但仍处于上下界之间的部分。目标为这部分供能赋予每kWh为$p_t$的近似收益，介于保留计划的$0.5p_t$和增购的$1.5p_t$之间，因而在无储能单时段情形下能得到前述调整规则。有储能时，换用区间内其他收益系数仍会改变配置，故该目标只用于近似求解，不等同于真实补购费用。
 
-初态取实际$E_k$，远端固定为次日24时且终端值为零，三个调整时点的剩余视窗分别为42、36、30小时。仅更新当天剩余时段的计划购电量，次日变量不作为正式计划，也不结算。HiGHS求解后核验对偶证书，并按问题二的方法消除同时充放电。
+初始电量取当前实际$E_k$，规划结束时刻统一为次日24时，不计该时刻的剩余价值。因此6、12、18时分别优化随后42、36、30小时，但只更新当天尚未执行的购电量，次日部分不计费。HiGHS求解后检查原始与对偶目标，并按问题二的方法去除同时充放电。
 
-每日0时确定当天计划购电量，6、12、18时更新尚未执行的部分，逐时执行沿用式~\eqref{eq:q2-greedy}的贪心缓冲器。三个时点、退款口径、调整带及融合权重均在费用回放前固定。一月15日至31日的影子检验中，导出带、单一0.8分位数、宽带及不调整的修正费用分别为\QThreeCheckBand、\QThreeCheckSymmetric、\QThreeCheckWide、\QThreeCheckPlanOnly 元；该检验用于检查规则表现，不据此另行选型。
+按上述模型，每日0时制定计划，6、12、18时修改剩余部分，实际充放电仍采用式~\eqref{eq:q2-greedy}。三个调整时点、退款规则、分位数区间和融合权重在费用回放前固定。一月15--31日另行模拟比较：本区间、单一0.8分位数、较宽区间及不调整策略的修正费用依次为\QThreeCheckBand、\QThreeCheckSymmetric、\QThreeCheckWide、\QThreeCheckPlanOnly 元。该比较用于检查规则表现，不据此重新选择策略。
 
-\subsection{全年结果与指定日期}
+\subsubsection{运行费用与指定日期结果}
 
-二月至十二月，主策略的计划费为\QThreePlanCost 万元，调整结算为\QThreeAdjustCost 万元（上调\QThreeUpCost 万元，下调退回\QThreeDownCost 万元），紧急费为\QThreeEmergencyCost 万元，现金总费用为\QThreeTotalCost 万元。全年上调\QThreeUpEnergy\ kWh、下调\QThreeDownEnergy\ kWh，在\QThreeAdjustedDays 天的\QThreeAdjustedSlots 个时段改变了计划购电量；紧急购电\QThreeEmergencyEnergy\ kWh，发生于\QThreeEmergencyDays 天，日紧急费用经验CVaR95为\QThreeCvar 元。期末电量\QThreeTerminal\ kWh，统一残值修正费用\QThreeAdjusted 元。
+二月至十二月，计划费为\QThreePlanCost 万元，调整净支出为\QThreeAdjustCost 万元，其中上调支付\QThreeUpCost 万元、下调退回\QThreeDownCost 万元，紧急费为\QThreeEmergencyCost 万元，合计\QThreeTotalCost 万元。共在\QThreeAdjustedDays 天的\QThreeAdjustedSlots 个时段修改计划，上调\QThreeUpEnergy\ kWh、下调\QThreeDownEnergy\ kWh。\par 紧急购电共\QThreeEmergencyEnergy\ kWh，发生于\QThreeEmergencyDays 天，日紧急费用CVaR95为\QThreeCvar 元。期末电量为\QThreeTerminal\ kWh，按共同剩余价值修正后的费用为\QThreeAdjusted 元。
 
-相对同一融合预报、仅$0{:}00$计划的策略，现金节省\QThreeSavingPlanOnly 元，节费率\QThreeSavingPlanOnlyPercent\%，紧急购电由\QThreePlanOnlyEmergency\ kWh降至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreePlanOnlyCvar 元降至\QThreeCvar 元；配对七日块重采样的日均节省95\%区间为$[\QThreeCIPlanOnlyLow,\QThreeCIPlanOnlyHigh]$元，不含零。相对问题二已发布策略（不用附件三、不调整），节省\QThreeSavingQTwo 元，节费率\QThreeSavingQTwoPercent\%。取消量远大于上调量，说明$0{:}00$计划在$0.8$分位数上保留的余量在信息更新后大部分被有偿收回，而上调集中在少数出现缺口的时段。
+与使用相同融合预报、但仅在0时制定计划的策略相比，主方案少付\QThreeSavingPlanOnly 元，节费率\QThreeSavingPlanOnlyPercent\%；紧急购电由\QThreePlanOnlyEmergency 降至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreePlanOnlyCvar 降至\QThreeCvar 元。日均节省的七日块重采样95\%区间为$[\QThreeCIPlanOnlyLow,\QThreeCIPlanOnlyHigh]$元，不含零。相对不用附件三且不调整的问题二策略，节省\QThreeSavingQTwo 元（\QThreeSavingQTwoPercent\%）。下调总量大于上调，表明部分日前余量在日内被取消并收回费用，而缺口较大的时段仍需增购。
 
-表~\ref{tab:q3-purchase}至表~\ref{tab:q3-emergency}依次给出0时计划量与最终计划购电量、储能实际运行及紧急购电；全天费用包含调整与紧急费。附录图~\ref{fig:q3-days}显示，中午下调高估的计划量、18时依据实际储电量和负荷上调，是两种主要的调整方式。
+表~\ref{tab:q3-purchase}至表~\ref{tab:q3-emergency}分别列出0时与最终计划、实际充放电和紧急购电，全天费用已含调整及补购。结合附录图~\ref{fig:q3-days}可见，午间主要取消偏高的计划，18时则常依据实际电量和晚间负荷增加购电，二者对应不同的调整需求。
 
 \begingroup
 \renewcommand{\arraystretch}{0.9}
-\input{../output/tables/q3_purchase.tex}
-\input{../output/tables/q3_storage.tex}
+\input{../output/tables/q3_purchase_layout.tex}
+\input{../output/tables/q3_storage_layout.tex}
 \endgroup
 \input{../output/tables/q3_emergency.tex}
 
-\subsection{收益归因与调整时点选择}
+\subsubsection{节费来源与调整时点选择}
 
-预报误差下降不等于购电费同比例下降。为区分信息与权限的作用，在相同实测轨迹、初态和结算规则下，按下式比较两策略的净现金收益：
+为了判断节费来自新预报还是调整机会，固定实测供需、初始电量和结算规则，比较两种策略的实际费用。定义净信息收益为
 \begin{equation}
   \operatorname{VOI}_{\rm net}
   =\mathbb E[C_{\rm no\ update}^{\rm cash}]
    -\mathbb E[C_{\rm update}^{\rm cash}].
   \label{eq:voi}
 \end{equation}
-费用已包含调整支出，不再重复扣除。表~\ref{tab:q3-comparison}与图~\ref{fig:q3-value}a依次构造三个差值：问题二策略改为“融合预报、仅计划”，节省\QThreeValueExternalPlan 元；再开放三时点调整但冻结光伏预报，节省\QThreeValueAdjustNoInfo 元；最后使用最新预报，再节省\QThreeValueFreshInfo 元。第二步同时引入计划调整权限与实际储电量、负荷偏差反馈，现有对照不再进一步分离二者。
+两项费用均已包含调整支出，不再另扣一次。表~\ref{tab:q3-comparison}和图~\ref{fig:q3-value}a按三个步骤比较：在问题二基础上，仅于0时融合附件三预报，节省\QThreeValueExternalPlan 元；允许三时点调整但继续沿用0时光伏预报，再节省\QThreeValueAdjustNoInfo 元；最后改用各时点新预报，额外节省\QThreeValueFreshInfo 元。第二步同时允许修改计划和利用实际储电量、负荷偏差，现有实验未把这两者进一步分开。
 
-最新预报增量的日均节费95\%区间为$[\QThreeCIStaleLow,\QThreeCIStaleHigh]$元，包含零。结合图~\ref{fig:q3-value}c、d可见，预报改善主要发生在白天，部分偏差可由储能吸收；费用较高的晚间缺口更依赖实际电量与负荷状态。由此，现有证据支持调整权限与状态反馈是主要收益来源，尚不足以确认日内光伏预报的独立节费作用。
+最后一步日均节费的95\%区间为$[\QThreeCIStaleLow,\QThreeCIStaleHigh]$元，包含零，尚不能确认新光伏预报具有独立节费作用。图~\ref{fig:q3-value}c、d表明，白天预报改善时，电池可以吸收部分供需偏差；晚间高价缺口则更取决于剩余储电量和实际负荷。由此，当前结果主要支持日内调整与状态反馈的作用。
 
 \input{../output/tables/q3_comparison.tex}
 
-时点消融进一步表明，三个更新机会的作用并不相同（图~\ref{fig:q3-value}b）。去掉6、12、18时调整，全年费用分别增加\QThreeMarginalSix、\QThreeMarginalTwelve、\QThreeMarginalEighteen 元；仅保留单一时点时，节省分别为\QThreeSingleSix、\QThreeSingleTwelve、\QThreeSingleEighteen 元。18时可在晚高峰前依据实际状态上调，以1.5倍价格替代部分5倍紧急购电；12时主要用于下调高估的计划购电量；6时作用最小，其日均差区间$[\QThreeCIDropSixLow,\QThreeCIDropSixHigh]$元包含零。
+再分别取消一个调整时点，考察其余条件不变时的费用差（图~\ref{fig:q3-value}b）。去掉6、12、18时调整，费用依次增加\QThreeMarginalSix、\QThreeMarginalTwelve、\QThreeMarginalEighteen 元；仅保留其中一个时点，相对不调整节省\QThreeSingleSix、\QThreeSingleTwelve、\QThreeSingleEighteen 元。18时接近晚高峰，可提前以1.5倍价格增购，减少后续5倍补购；12时主要取消偏高计划；6时作用最小，日均差区间$[\QThreeCIDropSixLow,\QThreeCIDropSixHigh]$元含零。
 
-因此，对题目“是否需要引入其他时刻预报”的回答是：在本年度四个预报版本与相同调整规则下，若只保留一个日内更新机会，应选18时；保留两个时以12、18时组合为优先；主策略保留全部三个时点。该排序反映预报、交易权限与状态反馈的共同作用，不能直接用于评价尚未提供的新预报服务。
+据此回答题目：若只保留一次日内更新，优先选择18时；若保留两次，优先选择12、18时；主方案仍使用全部三个时点。这里排序的是“获得预报并允许据实际状态调整”的综合作用，不能据此认定18时光伏预报本身最准确或最有价值，也不能直接推断未提供的其他预报时点。
 
 \begin{figure}[htbp]
  \centering\includegraphics[width=\textwidth]{../output/figures/q3_information_value.pdf}
- \caption{信息价值与预报误差。a：四个策略的334天现金费用阶梯，标注相邻差值，竖线为各策略与主策略日均费用差的95\%配对区间（换算为334天）；b：单一时点相对仅计划策略的节省，以及从三时点中去掉该时点的损失，误差线为95\%配对区间；c：各发布版本按目标小时的日均上调与取消电量，取消为负并加斜纹；d：各发布版本24小时窗口的光伏MAE。}
+ \caption{问题三的节费来源与预报误差。a：逐步加入0时融合、日内调整和新预报后的334天费用；b：单独保留或取消一个调整时点的费用差；c：各发布版本按目标小时汇总的日均上调、取消电量；d：各版24小时光伏MAE。a的误差线比较各策略与主策略，b比较相应成对策略，均为日均费用差95\%区间换算至334天。}
  \label{fig:q3-value}
 \end{figure}
 
-仅用附件三预报的三时点策略费用为\QThreeExternalOnlyCost 元，比融合主策略高\QThreeExternalOnlyDiff 元；不用附件三但允许调整时费用为\QThreeOwnAdjustCost 元。可见外部预报的收益依赖融合方式，而计划调整本身保留了大部分收益。问题二策略按问题三的费用规则逐时复现，确认两问费用口径衔接一致。
+只使用附件三预报、允许三次调整时，费用为\QThreeExternalOnlyCost 元，比融合方案高\QThreeExternalOnlyDiff 元；不使用附件三但允许调整时，费用为\QThreeOwnAdjustCost 元。说明外部预报需与本地预测合理结合，而调整机会在没有附件三时仍有作用。另外，取消外部预报与调整后，可逐时复现问题二，验证两问费用计算一致。
 
 \FloatBarrier
-\subsection{结算与代理模型的适用边界}
+\subsubsection{收费解释与近似模型的影响}
 \label{sec:q3-settlement}
 
-在不退款口径式~\eqref{eq:penalty-cost}下，同一策略的取消量为\QThreePenaltyDown\ kWh，费用为\QThreePenaltyCost 元，比退款口径高\QThreePenaltyDiff 元：取消机制被架空后，计划余量只能作为沉没成本，节省完全来自上调。这一差异是结算规则的直接后果；本文以题面的字面读法即退款口径为主口径，并如实报告两者。
+改用不退款规则式~\eqref{eq:penalty-cost}重新运行，取消量为\QThreePenaltyDown\ kWh，费用为\QThreePenaltyCost 元，比主规则高\QThreePenaltyDiff 元。由于取消不再退费，原计划费用已经无法收回，调整的节费作用只剩增加计划以替代紧急购电。本文采用退款解释并列出这一对照，不能认定题面排除了另一解释。若每次相邻版本的调整都收费，往返修改还会产生额外费用，本节净额结算结果不能直接套用。
 
-单一0.8分位数对照费用为\QThreeSymmetricCost 元，比主策略变化\QThreeSymmetricDiff 元，日均差区间为$[\QThreeCISymmetricLow,\QThreeCISymmetricHigh]$元，而一月影子检验略支持调整带。这说明具有经济解释的阈值未必使多时段代理模型取得最低回放费用，带内损失与调整机会的刻画仍有改进空间；由于年度对照已参与开发，不据此追溯改选主策略。
+单一0.8分位数对照费用为\QThreeSymmetricCost 元，相对主方案变化\QThreeSymmetricDiff 元，日均差区间为$[\QThreeCISymmetricLow,\QThreeCISymmetricHigh]$元；一月模拟则略支持分位数区间。因此，单时段经济推导能解释阈值，却不能保证多时段近似模型取得最低回放费用。后续应改进区间内损失与未来调整机会的计算，而不应在看完年度结果后再改称较便宜方案为事前选择。
 
-\paragraph{信息链同参检验}
+\paragraph{跨日预报与历史误差重算}
 \label{sec:q3-chain}
 
-冻结旧版、仅跨日预报、仅同构残差与主策略的比较见附录表~\ref{tab:q3-information-chain}。主策略较旧版少付\QThreeLegacyDiff 元，日均差区间$[\QThreeCILegacyLow,\QThreeCILegacyHigh]$元，下界仅略高于零；差额几乎全部来自同构残差，主策略与仅同构变体仅相差\QThreeMatchedBiasDiff 元。同构重建使18时调整带覆盖率更接近名义的70\%/90\%，但紧急购电由\QThreeLegacyEmergency 增至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreeLegacyCvar 增至\QThreeCvar 元。信息链修正的依据是声明与实现一致，费用与风险表现分别报告。
+另外分别考察两项处理：是否利用新预报覆盖的次日部分，以及是否按当前预测方法重新计算历史误差。两项均关闭、分别开启及同时开启共四组，见附录表~\ref{tab:q3-information-chain}，期末电量均为\QThreeTerminal\ kWh。主方案比两项关闭时少付\QThreeLegacyDiff 元，日均差区间$[\QThreeCILegacyLow,\QThreeCILegacyHigh]$元的下界仅略高于零；与只重算误差的方案相差\QThreeMatchedBiasDiff 元，说明费用差主要来自误差处理。\par 重算后18时上下界的覆盖率更接近70\%和90\%，但紧急购电由\QThreeLegacyEmergency 增至\QThreeEmergencyEnergy\ kWh，CVaR95由\QThreeLegacyCvar 增至\QThreeCvar 元。因此，误差样本与当前预测方法一致，并不保证费用和补购风险同时改善。
 
-全部\QThreeStrategyCount 条全年轨迹通过物理约束、计划版本与分项费用核验，最大残差不超过$2\times10^{-5}$ kWh。辅助段满足物理约束且不形成次日正式计划，其预测可由当时信息重建；改写未来观测及未发布版本不影响此前决策。工作簿回读一致，详见附录\ref{app:validation-details}。
+对全部\QThreeStrategyCount 组连续运行结果，独立检查电量、设备约束、计划版本和费用，最大电量残差不超过$2\times10^{-5}$ kWh。次日辅助段满足物理约束但不形成正式承诺；其预测可用当时信息重建，替换未来实测和未发布预报不改变此前决策。工作簿也与逐时明细一致，检查方法见附录\ref{app:validation-details}。

@@ -28,6 +28,8 @@
 
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0pt}
+% Permit slight interword flexibility for long numerical results and file names.
+\setlength{\emergencystretch}{2em}
 \linespread{1.28}
 \setlength{\textfloatsep}{12pt plus 2pt minus 2pt}
 \setlength{\floatsep}{10pt plus 2pt minus 2pt}
@@ -37,9 +39,10 @@
 \setlength{\belowdisplayskip}{8pt plus 2pt minus 2pt}
 \setlist{leftmargin=2em,labelsep=0.6em,itemsep=0.25em,topsep=0.4em,parsep=0pt}
 
-\titleformat{\section}{\centering\heiti\zihao{3}\bfseries}{\thesection}{0.8em}{}
-\titleformat{\subsection}{\heiti\zihao{4}\bfseries}{\thesubsection}{0.8em}{}
-\titleformat{\subsubsection}{\heiti\zihao{-4}\bfseries}{\thesubsubsection}{0.8em}{}
+% 章节标题采用宋体加粗，以字号和间距区分层级。
+\titleformat{\section}{\normalfont\centering\songti\zihao{3}\bfseries}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalfont\songti\zihao{4}\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalfont\songti\zihao{-4}\bfseries}{\thesubsubsection}{0.8em}{}
 \titlespacing{\section}{0pt}{1.2em}{0.8em}
 \titlespacing{\subsection}{0pt}{1.0em}{0.5em}
 \titlespacing{\subsubsection}{0pt}{0.8em}{0.4em}

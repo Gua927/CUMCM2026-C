@@ -1,45 +1,45 @@
 \input{../output/tables/q2_numbers.tex}
 \input{../output/tables/q2_boundary_numbers.tex}
 
-\subsection{因果预测与风险轮廓}
+\subsubsection{供需预测与历史误差处理}
 
-附件二包含365天、每天144个负荷与光伏观测。时标按连续日历解释：各行时间列为时段起点，某日$0{:}00$的样本取自前一日期行的“$0{:}00{+}1$”列，1月1日缺失的零点以同日$0{:}10$值补齐且只用于预热；官方模板末列保留原标签，并以批注说明其存放当日$0{:}00$--$0{:}10$的计划量。日循环解释的同参回放费用相差不足五百元，见附录。由于缺乏更早的历史，一月用于预热与影子验证，期间实际电池保持6000 kWh；二月至十二月连续回放334天、48096个时段。
+附件二包含365天、每天144个负荷与光伏记录。将时间作为时段起点，按连续日历排列：当日$0{:}00$取前一日期行的“$0{:}00{+}1$”，1月1日缺失首段以同日$0{:}10$补齐，仅用于建立初始历史。模板末列仍保留次日标签，但存放当日零点计划，作为补位例外在批注中说明；其与原标签的日期差异需结合映射表读取。另一种每日循环移位的费用差不足五百元，详见附录。\par 一月用于积累历史和另行模拟比较候选方法，实际电池约定闲置于6000 kWh。二月起连续运行334天、48096个时段，后一天继承前一天的实际电量。
 
-每日$j$的$0{:}00$同时生成今日与次日预测，记为
+在$j$日0时，根据此前历史同时预测当天和次日的负荷与光伏，记为
 $\hat{\boldsymbol x}_{j,k,t}=(\hat\ell_{j,k,t},\hat v_{j,k,t})$，
-其中$k=0,1$，目标日为$j+k$，两个提前期共用截至$j-1$日的历史，任一预测器都不读取目标日或其后的观测。备选三种预测器。季节滞后预测取一周前同时段负荷与前一完成日光伏；趋势预测按最近28天同星期轮廓作局部线性外推，光伏按最近14天趋势外推，并作平滑、斜率收缩与非负截断；回归预测为直接多步的逐时段岭回归\cite{fpp-regression}
+其中$k=0,1$分别表示当天、次日，两类预测均只使用截至$j-1$日的数据。比较三种方法：\textbf{季节滞后法}取一周前同时段负荷与前一日光伏；\textbf{趋势法}根据最近28天的同星期负荷和最近14天的光伏变化外推，并平滑结果、缩小外推斜率及去除负值；\textbf{回归法}分别对各时段建立岭回归，直接预测两个目标日\cite{fpp-regression}：
 \begin{equation}
  \hat\ell_{j+k,t}=\beta_{0,t}+\beta_{1,t}\ell_{j+k-7,t}+\beta_{2,t}\ell_{j-1,t}+\beta_{3,t}\bar\ell_{j-1},\qquad
  \hat v_{j+k,t}=\gamma_{0,t}+\gamma_{1,t}v_{j-1,t}+\gamma_{2,t}\bar v^{(7)}_{j-1,t},
  \label{eq:q2-regression}
 \end{equation}
-其中$\bar\ell_{j-1}$为最近完成日的日均负荷，$\bar v^{(7)}_{j-1,t}$为最近7个完成日同时段光伏均值。系数在每个起报日以最近56个完成日的“特征--目标”配对重新估计，目标日必须在$j-1$日之前完成，标准化后岭参数取1，样本不足12日时退回趋势预测。预测器与分位数、控制器一并进入一月选型，二月起结构冻结、系数逐日因果更新。
+式中$\bar\ell_{j-1}$为前一日平均负荷，$\bar v^{(7)}_{j-1,t}$为最近7个完成日同时段光伏均值。回归系数用最近56个完成日重新估计，训练目标不晚于$j-1$日；标准化后岭参数取1，不足12日样本时改用趋势预测。一月统一比较预测方法及调度参数，二月起固定所选方法，回归系数仍随历史数据增加而更新。
 
-误差校准同样按提前期区分。若历史起报日为$i$，其$k$日提前期残差为
+预测当天与预测次日的误差通常不同，因此分别建立误差样本。历史上$i$日发布、目标为$i+k$日的误差为
 \begin{equation}
  \boldsymbol r^{(k)}_{i,t}=\boldsymbol x_{i+k,t}-\hat{\boldsymbol x}_{i,k,t},
  \qquad i+k\le j-1.
  \label{eq:q2-matured-error}
 \end{equation}
-只有目标日已经结束的误差才可在$j$日使用：昨日发布的次日预测在今日$0{:}00$尚无完整真实标签，不能进入残差库。滚动验证的训练边界与标签可得边界分别核验\cite{fpp-tscv}。
+只有目标日已经结束，才能计算并使用该预测误差。例如，昨天0时对今天的预测，到今天0时仍没有完整实测值，不能加入误差样本。按这一规则随日期推进进行验证，同时检查训练数据和历史误差的可得时间\cite{fpp-tscv}。
 
-每个提前期取最近至多56条有效历史日残差，保留日内时段顺序及负荷、光伏的配对关系，构造非负扰动情景
+对每类预测取最近至多56个有效历史日，将同一天的负荷、光伏误差成对加入当前预测，保留其日内顺序，并将负荷和光伏的负值截为零，得到供需情景
 \[
  \boldsymbol x^{(i,k)}_{j,t}
  =[\hat{\boldsymbol x}_{j,k,t}+\boldsymbol r^{(k)}_{i,t}]^+,
  \qquad n^{(i,k)}_{j,t}=\ell^{(i,k)}_{j,t}-v^{(i,k)}_{j,t}.
 \]
-随后以线性插值经验分位数形成风险轮廓
+对各时段情景中的净负荷取经验分位数，得到用于安排购电余量的\textbf{风险需求曲线}：
 \begin{equation}
  \widetilde n_{j,k,t}(\alpha)=
  \widehat F^{-1}_{j,k,t}(\alpha).
  \label{eq:q2-risk-profile}
 \end{equation}
-该轮廓使用逐时边际分位数，其覆盖率不等同于整日可靠度。72小时对照另生成第三日预测；年末仍保持完整视窗，不读取跨年实测。
+经验分位数按相邻样本线性插值计算。上述曲线逐时取分位数，0.8表示单个时段的需求分布水平，不意味着全天有80\%概率无需补购。72小时对照按相同方法增加第三日预测；年末也保持完整规划时长，跨年部分仅用已有历史外推。
 
-\subsection{48小时规划与当天计划的确定}
+\subsubsection{跨日规划与当天购电计划}
 
-令$H=288$，将两天风险轮廓与重复的分时电价连接，复用问题一的物理骨架：
+令$H=288$，将当天和次日的风险需求曲线连接，电价按已知日内轮廓重复两次。以该曲线代替随机净负荷，沿用电量平衡和设备约束，建立近似规划：
 \begin{equation}
 \begin{aligned}
  \min\quad &\sum_{\tau=0}^{H-1}p_\tau\widetilde q_\tau+\Phi_H(E_H),\\
@@ -52,22 +52,22 @@ $\hat{\boldsymbol x}_{j,k,t}=(\hat\ell_{j,k,t},\hat v_{j,k,t})$，
 \end{aligned}
 \label{eq:q2-proxy}
 \end{equation}
-初态取当日实际电量，$s_\tau$为代理余电，主模型取$\Phi_H=0$。仅将前144个$\widetilde q_\tau$确定为当天的计划购电量，次日变量只用于评估后续资源需求；下一日从真实末态重新规划。这使预测视窗与正式计划范围相互分离\cite{mpc-horizon}。
+初始储电量取当天实际值，$s_\tau$表示规划中未利用的余电，主方案不计两天后电量的后续价值，即$\Phi_H=0$。求解后仅把前144个$\widetilde q_\tau$确定为当天计划；次日部分只帮助判断应保留多少储能，届时仍重新制定计划\cite{mpc-horizon}。
 
-24时是视窗内部状态，其价值可通过次日运行成本表示为
+由于当天24时处于两天规划的中间，其储电量会影响次日购电费。若当天末值为$e$，次日最低规划费用可表示为
 \begin{equation}
  J^{\rm next}_{j}(e)=
  \min_{\text{次日可行轨迹},\,E_{144}=e}
  \sum_{\tau=144}^{287}p_\tau\widetilde q_\tau+\Phi_{288}(E_{288}).
  \label{eq:q2-continuation}
 \end{equation}
-式~\eqref{eq:q2-continuation}使当日末态的价值随次日供需与设备约束变化。次日24时仍取零远端价值，有限视窗的误差需通过72小时及固定残值对照检验。
+式~\eqref{eq:q2-continuation}说明，当天末值的作用由次日需求、电价和设备条件共同决定。两天之后的价值仍被截断，因此还需与72小时规划及计入固定残值的方案比较，判断截断是否影响当天决策。
 
-线性规划用HiGHS求解，并核验原始可行性、对偶驻点和原始--对偶目标差\cite{scipy-linprog}。在正电价和可处置代理余电下，同时充放电可通过将$(c,d)$改为$(c-\varepsilon,d-\eta_c\eta_d\varepsilon)$消除，其中$\varepsilon=\min\{c,d/(\eta_c\eta_d)\}$；储能增量不变，所需购电不增加。执行轨迹再独立核验，代理可行性不替代真实可行性。
+用HiGHS求解线性规划，并检查约束残差与原始、对偶目标差\cite{scipy-linprog}。若解中出现同时充放电，令$\varepsilon=\min\{c,d/(\eta_c\eta_d)\}$，将$(c,d)$改为$(c-\varepsilon,d-\eta_c\eta_d\varepsilon)$；这样内部储电量变化不变，在正电价且余电允许弃用时，所需购电不会增加。规划完成后，还要根据实际供需逐段执行，不能把预测曲线下的可行性当作实际无缺口的保证。
 
-\subsection{日内执行与参数确定}
+\subsubsection{实际充放电规则与参数选择}
 
-当天计划购电量在0时确定后不再调整。以当前供需差额$b_t=q_t+v_t-\ell_t$为依据，贪心缓冲器取
+0时确定计划后，电池负责吸收计划与实际供需的偏差。设当前余缺电量为$b_t=q_t+v_t-\ell_t$，采用“有余电则充电、有缺口则放电”的贪心规则：
 \begin{equation}
 \begin{aligned}
  b_t\ge0:&\quad c_t=\min\{b_t,\bar c,(E^{\max}-E_t)/\eta_c\},\quad d_t=0;\\
@@ -75,56 +75,58 @@ $\hat{\boldsymbol x}_{j,k,t}=(\hat\ell_{j,k,t},\hat v_{j,k,t})$，
 \end{aligned}
 \label{eq:q2-greedy}
 \end{equation}
-即优先利用实际光伏，再取用已付费的计划购电量，剩余缺口按5倍价格紧急购电；紧急电不用于充电。当前时段平均供需视为可实时测量，这是10分钟离散控制的近似，不意味着预知下一时段。
+式~\eqref{eq:q2-greedy}中，充放电量同时受余缺电量、功率和内部电量限制。运行时优先使用光伏，再取用已付费的计划电量，电池放电仍不足的部分按5倍电价补购。该规则容易执行，但提前放电可能耗尽晚间高价时段的储量，因此不保证费用最优。\par 回放以当前10分钟的总电量计算动作，近似设备在时段内的快速反馈。若要求时段开始前一次性固定充放电量，当前完整实测值便不可用，需改为预测驱动并另行检查控制延迟。本文运行结果以前述快速反馈近似为条件。
 
-另设参考SOC跟踪与每小时滚动储能控制两种控制器：前者跟踪0时规划的参考状态，后者以已观察偏差更新剩余预测。三者均保持当天计划购电量不变，并继承实际储电量。
+另设两种充放电规则作对照：一是跟踪0时规划给出的参考储电量，二是每小时利用已观测误差更新预测，再优化剩余储能动作。三者均不修改当天购电计划，并连续传递实际电量。
 
-一月15日至31日比较三种预测器、四个分位数$\{0.50,0.65,0.80,0.90\}$及三种控制器，共36组连续影子回放。按共同残值修正费用排序，0.01元以内视为并列，并依预设规则择优，最终选定\QBForecast、$\alpha=\QBQuantile$及\QBController，验证费用为\QBValidation 元，容差内并列\QBTies 项。二月起参数冻结，预测与残差库仍因果更新。跨日方案是在查看年度诊断后修订的，故本文的评价定位为因果历史回放。
+一月15--31日对三种预测方法、四个分位数$\{0.50,0.65,0.80,0.90\}$及三种充放电规则分别模拟，共36组。按计入共同剩余电量价值后的费用排序，差额不超过0.01元视为并列，再按预设规则选择，最终采用\QBForecast、$\alpha=\QBQuantile$及上述贪心规则，验证费用为\QBValidation 元，并列\QBTies 项。二月起保持选型不变，历史样本逐日更新。48小时结构曾依据全年诊断修订，因此后续评价属于按信息顺序进行的历史回放。
 
-\subsection{费用收益与尾部风险}
+\subsubsection{购电费用与紧急购电风险}
 
-计划费为\QTwoPlanCost 万元，紧急费为\QTwoEmergencyCost 万元，现金总费用为\QTwoTotalCost 万元，紧急购电量为\QTwoEmergencyEnergy\ kWh，期末电量为\QTwoTerminal\ kWh。为公平处理不同的期末状态，统一采用
+连续运行所得计划费为\QTwoPlanCost 万元，紧急费为\QTwoEmergencyCost 万元，合计\QTwoTotalCost 万元；紧急购电\QTwoEmergencyEnergy\ kWh，期末储电量\QTwoTerminal\ kWh。不同策略的期末电量并不相同，为避免将多耗电池电量误认为节费，另计算统一修正费用
 \begin{equation}
  \nu_{\rm eval}=\min_t p_t/\eta_c=\QBCommonNu,\qquad
  C^{\rm adj}=C^{\rm cash}-\nu_{\rm eval}(E_{\rm end}-E_{\rm start}).
 \end{equation}
-该系数是共同记账基准，不等于规划终端项。主方案修正费用为\QBAdjusted 元，2月1日从6000 kWh出发，实际日末为\QBFirstEnd\ kWh。
+其中$\nu_{\rm eval}$只用于结果比较，不能与规划中的期末价值混用。主方案的修正费用为\QBAdjusted 元。实际运行从2月1日6000 kWh开始，当天末值为\QBFirstEnd\ kWh，此后各日接续运行。
 
 \input{../output/tables/q2_comparison.tex}
 
-无储能基线使用相同预测与0.8分位数；点预测基线沿用主视窗及控制器，但不加风险余量。主方案相对两者分别节费\QTwoSaving\%和\QBPointSaving\%。图~\ref{fig:q2-cost}a显示风险轮廓、0时计划购电量与实际缺口的关系，b表明较高的计划费换回了更多的紧急费节省。
+无储能对照采用相同预测和0.8分位数，点预测对照保留相同规划时长与充放电规则，但不加历史误差形成的余量。主方案相对两者分别节费\QTwoSaving\%和\QBPointSaving\%。图~\ref{fig:q2-cost}a显示需求曲线、计划与实际补购的对应关系；b表明，预留较多计划电量虽增加正常购电费，却减少了更多高价补购支出。
 
 \begin{figure}[htbp]
  \centering\includegraphics[width=\textwidth]{../output/figures/q2_risk_planning.pdf}
- \caption{计划购电量固定时的风险规划与费用比较。a：指定日期中紧急购电最多的一天（2025-09-23），灰带为56条成对残差扰动情景净负荷的5\%--95\%与25\%--75\%范围，实线为$0.8$分位数风险轮廓，蓝色为0时计划购电量，斜纹为紧急购电；b：334天计划费与紧急费堆叠，横轴从零起；c：主方案相对各对照的日均现金节省，误差线为七日循环块重采样95\%区间；d：334天费用与日紧急费用经验CVaR95。}
+ \caption{问题二的计划余量与费用比较。a：指定日期中紧急购电最多的9月23日，灰带为历史误差情景的净负荷分布范围，实线为0.8分位数需求曲线，蓝色为0时计划，斜纹为补购；b：334天计划费与紧急费；c：主方案相对各对照的日均节省及七日块重采样95\%区间；d：总费用与日紧急费用CVaR95。}
  \label{fig:q2-cost}
 \end{figure}
 
-第一提前期负荷与光伏MAE分别为\QTwoLoadMAE\ kW和\QTwoPVMAE\ kW，风险轮廓覆盖率为\QTwoCoverage\%。预测评价以目标实测已经存在的时段为限。
+当天预测的负荷、光伏平均绝对误差（MAE）分别为\QTwoLoadMAE\ kW和\QTwoPVMAE\ kW；实际净负荷不超过风险需求曲线的时段占\QTwoCoverage\%。误差仅在已有实测的目标时段计算，不对年末缺乏实测的辅助预测评价精度。
 
-主方案在\QBEmergencyDays 天、\QBEmergencySlots 个时段发生紧急购电，补购后负荷均得到满足。日紧急费用CVaR95为\QBCvar 元，无储能为\QBBaseCvar 元。平均节费与尾部风险应分别判断，图~\ref{fig:q2-cost}c、d给出两类证据；配对区间的统一解释见\hyperref[sec:model-validation]{第九章}。
+主方案有\QBEmergencyDays 天、\QBEmergencySlots 个时段需要紧急购电，补购后负荷均被满足。日紧急费用CVaR95为\QBCvar 元，无储能对照为\QBBaseCvar 元。总费用与少数高损失日的表现应分别评价，不能仅因平均节费就认定风险全面降低；图~\ref{fig:q2-cost}c、d给出两方面结果，区间的解释见\hyperref[sec:model-validation]{模型检验与评价}一节。
 
-\subsection{跨日机制的对照检验}
+\subsubsection{规划时长与期末电量的影响}
 
-以相同预测器、分位数、控制器和初态比较五种边界处理：24小时旧终端规则、24小时替代成本方案A、48小时方案B、72小时视窗及48小时加远端残值。A取$\nu=p_{0:00}/\eta_c$，远端残值对照取$\nu=\min p/\eta_c$；评价均用同一$\nu_{\rm eval}$修正，并另列旧版冻结结果以识别重新选型的影响。
+为检验跨日规划的作用，固定预测、分位数、充放电规则及初态，比较五种设置：24小时原终端规则、24小时替代成本方案A、48小时方案B、72小时方案及48小时计入远端残值的方案。A取$\nu=p_{0:00}/\eta_c$，远端残值取$\nu=\min p/\eta_c$，结果均用$\nu_{\rm eval}$统一修正。表中另外保留旧配置结果作为历史参照。
 
 \input{../output/tables/q2_boundary.tex}
 
-旧版冻结结果沿用其归档配置（双侧$0.9$效率、日循环时标与旧预测器集合），只作历史参照，不再是同参复现。相对同参24小时方案，B的计划费相差\QBMatchedPlanDifference 元（B减24小时），紧急费相差\QBMatchedEmergencyDifference 元（24小时减B），现金费用相对变化\QBMatchedPercent\%；修正期末资源后的比较见表~\ref{tab:q2-boundary}。
+旧配置采用两侧各0.9的效率、每日循环时标和原预测方法集合，与当前配置不同，不能作为只改变规划时长的对照。以下只比较相同参数的结果：B与24小时方案的计划费差为\QBMatchedPlanDifference 元（B减24小时），紧急费差为\QBMatchedEmergencyDifference 元（24小时减B），现金费用相对变化\QBMatchedPercent\%；期末电量修正后的结果见表~\ref{tab:q2-boundary}。
 
-72小时与远端残值对照相对B的费用变化分别为\QBSeventyTwoDifference 元和\QBSalvageDifference 元，计划购电量与执行轨迹也一致，说明本次远端变化未影响当天决策。B相对同参24小时的日均修正节费95\%区间为$[\QBCIMatchedLow,\QBCIMatchedHigh]$元。因此本文保留48小时作为跨日研究主线，但不宣称其显著节费。
+与B相比，72小时方案和加入远端残值方案的费用变化分别为\QBSeventyTwoDifference 元、\QBSalvageDifference 元，计划和执行记录也一致，表明这两项变化未改变本次当天决策。B相对24小时方案的日均修正节费95\%区间为$[\QBCIMatchedLow,\QBCIMatchedHigh]$元，包含零，因而尚不能确认48小时方案具有稳定费用优势。
 
-附录图~\ref{fig:q2-boundary}给出跨日机制：日末平均电量由\QBOldEndMean 升至\QBEndMean\ kWh，22--24时日均充电由\QBOldLateCharge 变为\QBLateCharge\ kWh，累计紧急购电由\QBOldLateEmergency 变为\QBLateEmergency\ kWh。这些指标反映资源配置的变化，但不能把全部晚间补购归因于边界规则。跨日视窗改变了晚间资源配置，费用却未同步改善；48小时方案的采用依据是连续运行的建模需要，其经济优势仍以对照证据为准。
+附录图~\ref{fig:q2-boundary}进一步给出晚间储能变化。日末平均电量由\QBOldEndMean 升至\QBEndMean\ kWh，22--24时日均充电由\QBOldLateCharge 变为\QBLateCharge\ kWh，该时段累计紧急购电由\QBOldLateEmergency 变为\QBLateEmergency\ kWh。延长规划主要改变了晚间保留和补充电量的方式，新增计划费与补购费变化相互抵消；晚间补购还受预测误差及设备限制影响，不能全部归于期末处理。
 
-\subsection{指定日期结果与敏感性}
+\subsubsection{指定日期结果与参数敏感性}
 
-表~\ref{tab:q2-purchase}列付费计划量及包含紧急费的现金费用，表~\ref{tab:q2-storage}列实际储能运行，表~\ref{tab:q2-emergency}列紧急购电区间。所有日期均继承此前的实际状态，不为指定日期单独重置电池；逐时运行图见附录图~\ref{fig:q2-days}。
+指定日期的0时计划和实际总费用见表~\ref{tab:q2-purchase}，充放电及初末电量见表~\ref{tab:q2-storage}，紧急购电区间见表~\ref{tab:q2-emergency}。这些日期均取自连续运行记录，未单独重置电池。完整逐时曲线见附录图~\ref{fig:q2-days}。
 
 \begingroup
 \renewcommand{\arraystretch}{0.9}
-\input{../output/tables/q2_purchase.tex}
-\input{../output/tables/q2_storage.tex}
+\input{../output/tables/q2_purchase_layout.tex}
+\input{../output/tables/q2_storage_layout.tex}
 \endgroup
 \input{../output/tables/q2_emergency.tex}
 
-另完成\QBSensitivityCases 组指定日局部敏感性，扰动分位数、设备参数、补购倍率与误差幅度；从当日实际初态重算，容量变化保持储电量比例，误差扰动不改变真实供需。四日结果不代表全年稳健性；视窗和残值则采用完整区间对照。实际轨迹、辅助规划及工作簿均通过独立核验，证据汇总于\hyperref[sec:model-validation]{第九章}及附录\ref{app:validation-details}。
+表~\ref{tab:q2-emergency}中的“--”表示当天没有紧急购电，合计0.000不表示没有向外网购电。3月20日、6月21日和12月21日的计划缺口由电池补足；9月23日20:20先受放电功率限制，20:30--20:40又降至电量下限，需要继续补购至22时。四日由题目指定，全年仍有\QBEmergencyDays 个紧急购电日，不能据此判断其他日期也无风险。
+
+另对指定日完成\QBSensitivityCases 组敏感性计算，分别改变分位数、设备参数、补购倍率和误差幅度。每组从当天实际初态重新运行，容量变化时保持初始储电比例，误差变化仅影响预测而不改动真实供需。这些结果反映四日局部响应；规划时长和残值则采用全评价期对照。逐时记录及工作簿检查见\hyperref[sec:model-validation]{模型检验与评价}一节和附录\ref{app:validation-details}。

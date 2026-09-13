@@ -31,7 +31,7 @@ def write_report(folder, comparison, errors, check, ci, references, config, audi
 - 附件4的价格均值与附件1相同，日内平均轮廓与附件1完全相关；日级水平随星期与季节变动，周五、周六显著偏低。
 - 日前预测 = {s['price_method_basis']}
 - 日内修正：{s['intraday_basis']}。当日剩余时段 MAE（元/kWh）：6:00 {it['stale_36']:.4f}→{it['remaining_36']:.4f}，12:00 {it['stale_72']:.4f}→{it['remaining_72']:.4f}，18:00 {it['stale_108']:.4f}→{it['remaining_108']:.4f}。
-- 价格与净负荷：逐时相关 {references['price_net_corr']:.3f}，逐时线性 R² {references['price_net_r2']:.3f}；净负荷预测误差最高20%的时段其价格为均值的 {references['deficit_price_ratio']:.3f} 倍，因此紧急购电倾向发生在偏高价格时段。
+- 价格与净负荷：逐时相关 {references['price_net_corr']:.3f}，逐时线性 R² {references['price_net_r2']:.3f}；净负荷实测减预测之差最高20%的时段（需求被低估最多的部分），其价格为均值的 {references['deficit_price_ratio']:.3f} 倍，提示需求低估与偏高价格可能叠加；该事件不等同于策略实际发生紧急购电的事件。
 
 ## 价格预测误差
 

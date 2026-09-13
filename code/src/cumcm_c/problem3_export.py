@@ -208,7 +208,7 @@ def tex_tables(frame, comparison, emergencies, dates, target, diagnostics, ci, c
     if len(chain) == 4:
         c0 = comparison.set_index("strategy")
         lines = [r"\begin{table}[htbp]\centering\footnotesize", r"\setlength{\tabcolsep}{3pt}",
-                 r"\caption{信息链修复的四组同参对照（二月至十二月；相同输入、初态、控制器与结算；期末电量均为8837 kWh）：现金费用及分解（万元）、紧急购电（kWh）、日紧急费用CVaR95（元）与主策略相对该变体日均节省的七日块配对95\%区间（元）}",
+                 r"\caption{信息链修复的四组同参对照（二月至十二月；相同输入、初态、控制器与结算）：现金费用及分解（万元）、紧急购电（kWh）、日紧急费用CVaR95（元）与主策略相对该变体日均节省的七日块配对95\%区间（元）}",
                  r"\label{tab:q3-information-chain}\begin{tabular}{lccrrrrrrl}\toprule",
                  r"变体 & 跨日新预报 & 同构残差 & 总费用 & 计划费 & 调整费 & 紧急费 & 紧急量 & CVaR95 & 日均节省区间 \\\midrule"]
         for s in chain:
