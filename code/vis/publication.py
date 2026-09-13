@@ -202,7 +202,9 @@ def q2_risk_planning(main,comparison,paired,scenarios,dates,folder):
     # c: paired daily saving on the same rows as b. A filled marker means the 95% interval excludes
     # zero, a hollow one that it contains zero; the interval is drawn, never a fitted density.
     ax=fig.add_subplot(grid[1,1]);paired=paired or {}
-    low_limit,high_limit=-1.8,22
+    bounds=np.array([v["ci95_mean_daily_yuan"] for v in paired.values()])/1000 if paired else np.zeros((1,2))
+    # The value column is right-aligned at ``high_limit``; keep the widest interval clear of it.
+    high_limit=max(22.,float(bounds.max())/.7);low_limit=min(0.,float(bounds.min()))-.08*high_limit
     for i,key in enumerate(names):
         ax.plot([low_limit]*2,[i-.35,i+.35],color=STRATEGY[key][0],lw=2.6,solid_capstyle="butt",zorder=6,clip_on=False)
     ax.axvline(0,color=C["text"],lw=.8,zorder=1,ymax=.86)
@@ -218,7 +220,7 @@ def q2_risk_planning(main,comparison,paired,scenarios,dates,folder):
         ax.plot([low,high],[i,i],color=tint(color,.45),lw=3.6,solid_capstyle="round",zorder=3)
         ax.plot(mean,i,marker=marker,ms=4.6,mfc=color if low>0 else "white",mec=color,mew=1.15,zorder=5)
         inside(ax.annotate(f"{mean:.2f}",(high_limit,i),xytext=(-2,0),textcoords="offset points",va="center",ha="right",fontsize=8,color=C["text"]))
-    ax.set_xlim(low_limit,high_limit);ax.set_ylim(n-.5,top);ax.set_yticks([]);ax.set_xticks([0,5,10,15,20])
+    ax.set_xlim(low_limit,high_limit);ax.set_ylim(n-.5,top);ax.set_yticks([]);ax.set_xticks(np.arange(0,high_limit,5))
     ax.spines[["top","right","left"]].set_visible(False);ax.grid(False)
     ax.set_xlabel("相对该对照的日均节省 (千元)");panel(ax,"c","配对节费与 95% 区间")
     # d: the two indicators together. The dashed line joins the strategies that no other strategy
